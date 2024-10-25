@@ -27,4 +27,14 @@ async function getPool() {
   return pool;
 }
 
-module.exports = getPool;
+async function verificarConexao() {
+  try {
+    const pool = await getPool();
+    await pool.request().query('SELECT 1');
+    console.log('Conexão com o banco de dados bem-sucedida.');
+  } catch (err) {
+    throw new Error(`Erro ao conectar no SQLServer: ${err.message}`);
+  }
+}
+
+module.exports = { getPool, verificarConexao };
