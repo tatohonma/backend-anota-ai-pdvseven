@@ -6,7 +6,15 @@ let configuracoes = {
   tipoDesconto: null,
   tipoEntrega: null,
   entregador: null,
-  formaPagamento: null,
+  tipoPagamento: {
+    dinheiro: null,
+    credito: null,
+    debito: null,
+    vr: null,
+    pix: null,
+    anotaai: null,
+    outros: null,
+  },
 };
 
 const iniciarConfiguracoes = async () => {
@@ -18,7 +26,6 @@ const iniciarConfiguracoes = async () => {
     let origemPedidoResult = await pool
       .request()
       .query(`SELECT * FROM tbOrigemPedido WHERE nome='anota-ai'`);
-
     if (origemPedidoResult.recordset.length === 0) {
       await pool.request().query(`INSERT INTO tbOrigemPedido (nome) VALUES ('anota-ai')`);
       console.log("  - OrigemPedido adicionada com sucesso.");
@@ -27,7 +34,6 @@ const iniciarConfiguracoes = async () => {
         .request()
         .query(`SELECT * FROM tbOrigemPedido WHERE nome='anota-ai'`);
     }
-
     configuracoes.origemPedido = origemPedidoResult.recordset[0];
     console.log("  - OrigemPedido carregada");
 
@@ -51,7 +57,7 @@ const iniciarConfiguracoes = async () => {
     configuracoes.usuario = usuarioResult.recordset[0];
     console.log("  - Usuário carregado:", configuracoes.usuario.Nome);
 
-    const tipoDescontoResult = await pool
+    let tipoDescontoResult = await pool
       .request()
       .query(`SELECT * FROM tbTipoDesconto WHERE nome='anota-ai'`);
 
@@ -60,13 +66,16 @@ const iniciarConfiguracoes = async () => {
         .request()
         .query(`INSERT INTO tbTipoDesconto (nome, ativo, excluido) VALUES ('anota-ai', 1, 0)`);
       console.log("  - TipoDesconto adicionado com sucesso.");
+      tipoDescontoResult = await pool
+        .request()
+        .query(`SELECT * FROM tbTipoDesconto WHERE nome='anota-ai'`);
     }
 
     configuracoes.tipoDesconto = tipoDescontoResult.recordset[0];
     console.log("  - TipoDesconto carregado");
 
     // Carregar Entregador
-    const entregadorResult = await pool
+    let entregadorResult = await pool
       .request()
       .query(`SELECT * FROM tbEntregador WHERE nome='anota-ai'`);
 
@@ -75,12 +84,15 @@ const iniciarConfiguracoes = async () => {
         .request()
         .query(`INSERT INTO tbEntregador (nome, ativo, excluido) VALUES ('anota-ai', 1, 0)`);
       console.log("  - Entregador padrão adicionado com sucesso.");
+      entregadorResult = await pool
+        .request()
+        .query(`SELECT * FROM tbEntregador WHERE nome='anota-ai'`);
     }
     configuracoes.entregador = entregadorResult.recordset[0];
     console.log("  - Entregador carregado");
 
     // Carregar Taxa Entrega
-    const taxaEntregaResult = await pool
+    let taxaEntregaResult = await pool
       .request()
       .query(`SELECT * FROM tbTaxaEntrega WHERE nome='anota-ai'`);
 
@@ -91,12 +103,16 @@ const iniciarConfiguracoes = async () => {
           `INSERT INTO tbTaxaEntrega (nome, valor, ativo, excluido) VALUES ('anota-ai', 0, 1, 0)`
         );
       console.log("  - TaxaEntrega adicionada com sucesso.");
+      taxaEntregaResult = await pool
+        .request()
+        .query(`SELECT * FROM tbTaxaEntrega WHERE nome='anota-ai'`);
     }
+
     configuracoes.taxaEntrega = taxaEntregaResult.recordset[0];
     console.log("  - TaxaEntrega carregada");
 
     // Carregar Forma de Pagamento
-    const tipoPagamentoResult = await pool
+    let tipoPagamentoResult = await pool
       .request()
       .query(`SELECT * FROM tbTipoPagamento WHERE nome='anota-ai'`);
 
@@ -109,9 +125,67 @@ const iniciarConfiguracoes = async () => {
         ('anota-ai', 0, 1, 10, 6)`);
 
       console.log("  - TipoPagamento adicionada com sucesso.");
+      tipoPagamentoResult = await pool
+        .request()
+        .query(`SELECT * FROM tbTipoPagamento WHERE nome='anota-ai'`);
     }
-    configuracoes.formaPagamento = tipoPagamentoResult.recordset[0];
-    console.log("  - TipoPagamento carregada");
+    configuracoes.tipoPagamento.anotaai = tipoPagamentoResult.recordset[0];
+    console.log("  - TipoPagamento anotaai carregada");
+
+    const dinheiroResult = await pool
+      .request()
+      .query(`SELECT * FROM tbTipoPagamento WHERE idMeioPagamentoSAT=1`);
+    if (dinheiroResult.recordset.length === 0) throw "Erro ao carregar TipoPagamento Dinheiro";
+    configuracoes.tipoPagamento.dinheiro = dinheiroResult.recordset[0];
+    console.log("  - TipoPagamento Dinheiro carregada");
+
+    const creditoResult = await pool
+      .request()
+      .query(`SELECT * FROM tbTipoPagamento WHERE idMeioPagamentoSAT=3`);
+    if (creditoResult.recordset.length === 0) throw "Erro ao carregar TipoPagamento Crédito";
+    configuracoes.tipoPagamento.credito = creditoResult.recordset[0];
+    console.log("  - TipoPagamento Crédito carregada");
+
+    const debitoResult = await pool
+      .request()
+      .query(`SELECT * FROM tbTipoPagamento WHERE idMeioPagamentoSAT=4`);
+    if (debitoResult.recordset.length === 0) throw "Erro ao carregar TipoPagamento Débito";
+    configuracoes.tipoPagamento.debito = debitoResult.recordset[0];
+    console.log("  - TipoPagamento Débito carregada");
+
+    let vrResult = await pool
+      .request()
+      .query(`SELECT * FROM tbTipoPagamento WHERE idMeioPagamentoSAT=7`);
+    if (vrResult.recordset.length === 0) {
+      await pool.request().query(`INSERT INTO tbTipoPagamento 
+        (nome, CodigoImpressoraFiscal, registrarValores, ativo, idMeioPagamentoSAT) VALUES 
+        ('Vale Refeição', 0, 1, 1, 7)`);
+      console.log("  - TipoPagamento Vale Refeição adicionada com sucesso.");
+      vrResult = await pool
+        .request()
+        .query(`SELECT * FROM tbTipoPagamento WHERE idMeioPagamentoSAT=7`);
+    }
+    configuracoes.tipoPagamento.vr = vrResult.recordset[0];
+    console.log("  - TipoPagamento VR carregada");
+
+    let pixResult = await pool.request().query(`SELECT * FROM tbTipoPagamento WHERE nome='pix'`);
+    if (pixResult.recordset.length === 0) {
+      await pool.request().query(`INSERT INTO tbTipoPagamento 
+        (nome, CodigoImpressoraFiscal, registrarValores, ativo, idMeioPagamentoSAT) VALUES 
+        ('Pix', 0, 1, 1, 10)`);
+      console.log("  - TipoPagamento Pix adicionada com sucesso.");
+      pixResult = await pool.request().query(`SELECT * FROM tbTipoPagamento WHERE nome='pix'`);
+    }
+    configuracoes.tipoPagamento.pix = pixResult.recordset[0];
+    console.log("  - TipoPagamento PIX carregada");
+
+    const outrosPagamentosResult = await pool
+      .request()
+      .query(`SELECT * FROM tbTipoPagamento WHERE idMeioPagamentoSAT=10`);
+    if (outrosPagamentosResult.recordset.length === 0)
+      throw "Erro ao carregar TipoPagamento Outros";
+    configuracoes.tipoPagamento.outros = outrosPagamentosResult.recordset[0];
+    console.log("  - TipoPagamento Outros carregada");
 
     console.log("Configurações carregadas com sucesso");
   } catch (error) {

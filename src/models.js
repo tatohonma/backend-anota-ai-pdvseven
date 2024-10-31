@@ -3,36 +3,88 @@ const { v4: uuidv4 } = require("uuid");
 const { getPool } = require("./config/db");
 const { getConfiguracoes } = require("./config/pdv7");
 
-// Função para inserir pedidos no SQL Server
+let config = {};
+
 const inserirPedidoNoPDVSeven = async (pedido) => {
-  // console.log("inserirPedidoNoPDVSeven", pedido)
+  console.log("Adicionar pedido", pedido._id);
+
   try {
+    config = getConfiguracoes();
+
     const idCliente = await adicionarCliente(pedido);
     const idPedido = await adicionarPedido(pedido, idCliente);
     adicionarProdutos(pedido, idPedido);
-    adicionarPagamentos(pedido, idPedido);
+    const pagamentos = await adicionarPagamentos(pedido, idPedido);
+
+    const ticket = formatarTicket(pedido, pedido.customer, pagamentos);
+    // salvar o ticket em tbPedido.observacoes
+    const pool = await getPool();
+    await pool
+      .request()
+      .input("IDPedido", sql.Int, idPedido)
+      .input("Observacoes", sql.NVarChar(sql.MAX), ticket)
+      .query(`UPDATE tbPedido SET Observacoes = @Observacoes WHERE IDPedido = @IDPedido`);
+
+    console.log("");
+    console.log("------------------------------------------");
+    console.log(ticket);
+    console.log("------------------------------------------");
   } catch (error) {
     console.error("Erro ao inserir pedido:", error);
   }
 };
 
 const adicionarCliente = async (pedido) => {
-  console.log("adicionarCliente");
-  // console.log("pedido.customer", pedido.customer);
-  // console.log("pedido.deliveryAddress", pedido.deliveryAddress);
-
   const pool = await getPool();
 
   const ddd = pedido.customer.phone.substring(0, 2);
   const telefone = pedido.customer.phone.substring(2);
   const guid = uuidv4();
 
-  // Carregar IDEstado da tbEstado onde sigla é pedido.customer.state
+  const resultCliente = await pool
+    .request()
+    .query(
+      `SELECT IDCliente FROM tbCliente WHERE Telefone1DDD=${ddd} AND Telefone1Numero=${telefone}`
+    );
+
+  let idEstado = null;
   const resultEstado = await pool
     .request()
-    .query(`SELECT IDEstado FROM tbEstado WHERE Sigla='${pedido.deliveryAddress.state}'`);
+    .input("Sigla", sql.VarChar, pedido.deliveryAddress.state)
+    .query(`SELECT IDEstado FROM tbEstado WHERE Sigla = @Sigla`);
 
-  const idEstado = resultEstado.recordset[0].IDEstado;
+  if (resultEstado.recordset.length > 0) {
+    idEstado = resultEstado.recordset[0].IDEstado;
+  } else {
+    throw new Error(`Estado não encontrado para a sigla: ${pedido.deliveryAddress.state}`);
+  }
+
+  if (resultCliente.recordset.length > 0) {
+    const idCliente = resultCliente.recordset[0].IDCliente;
+
+    await pool
+      .request()
+      .input("Endereco", sql.VarChar, pedido.customer.streetName)
+      .input("EnderecoNumero", sql.VarChar, pedido.customer.streetNumber)
+      .input("Complemento", sql.VarChar, pedido.customer.complement)
+      .input("Bairro", sql.VarChar, pedido.customer.neighborhood)
+      .input("Cidade", sql.VarChar, pedido.customer.city)
+      .input("IDEstado", sql.Int, idEstado)
+      .input("CEP", sql.Int, pedido.customer.postalCode)
+      .input("EnderecoReferencia", sql.VarChar, pedido.customer.reference)
+      .input("IDCliente", sql.Int, idCliente).query(`UPDATE tbCliente SET 
+        Endereco = @Endereco, 
+        EnderecoNumero = @EnderecoNumero, 
+        Complemento = @Complemento, 
+        Bairro = @Bairro, 
+        Cidade = @Cidade, 
+        IDEstado = @IDEstado,
+        CEP = @CEP, 
+        EnderecoReferencia = @EnderecoReferencia 
+        WHERE IDCliente = @IDCliente`);
+
+    return idCliente;
+  }
 
   const result = await pool
     .request()
@@ -61,20 +113,13 @@ const adicionarCliente = async (pedido) => {
 };
 
 const adicionarPedido = async (pedido, idCliente) => {
-  console.log("adicionarPedido");
-  // console.log("idCliente", idCliente);
-  // console.log("pedido", pedido);
-
   const pool = await getPool();
-
-  const config = getConfiguracoes();
 
   const idTipoDesconto = config.tipoDesconto.IDTipoDesconto;
   const idTaxaEntrega = config.taxaEntrega.IDTaxaEntrega;
   const idOrigemPedido = config.origemPedido.IDOrigemPedido;
   const idEntregador = config.entregador.IDEntregador;
 
-  const guidIdentificacao = uuidv4();
   const valorDesconto = 0;
   const observacoes = "";
   const aplicarDesconto = 0;
@@ -87,7 +132,8 @@ const adicionarPedido = async (pedido, idCliente) => {
     .input("IDStatusPedido", sql.Int, 60)
     .input("IDTipoDesconto", sql.Int, idTipoDesconto)
     .input("IDTaxaEntrega", sql.Int, idTaxaEntrega)
-    .input("GUIDIdentificacao", sql.NVarChar(50), guidIdentificacao)
+    .input("GUIDIdentificacao", sql.NVarChar(50), uuidv4())
+    .input("GUIDMovimentacao", sql.NVarChar(50), uuidv4())
     .input("ValorDesconto", sql.Decimal(18, 2), valorDesconto)
     .input("ValorTotal", sql.Decimal(18, 2), pedido.total)
     .input("Observacoes", sql.NVarChar(sql.MAX), observacoes)
@@ -96,29 +142,22 @@ const adicionarPedido = async (pedido, idCliente) => {
     .input("ObservacaoCupom", sql.NVarChar(sql.MAX), observacaoCupom)
     .input("IDOrigemPedido", sql.Int, idOrigemPedido)
     .input("PermitirAlterar", sql.Bit, 0)
-    .input("IDEntregador", sql.Int, idEntregador)
-    .query(`
+    .input("IDEntregador", sql.Int, idEntregador).query(`
           INSERT INTO [dbo].[tbPedido]
-              ([IDCliente], [IDTipoPedido], [IDStatusPedido], [IDTipoDesconto], [IDTaxaEntrega], [GUIDIdentificacao], [DtPedido], [ValorDesconto], [ValorTotal], [Observacoes], [ValorEntrega], [AplicarDesconto], [ObservacaoCupom], [IDOrigemPedido], [PermitirAlterar], [IDEntregador])
+              ([IDCliente], [IDTipoPedido], [IDStatusPedido], [IDTipoDesconto], [IDTaxaEntrega], [GUIDIdentificacao], [GUIDMovimentacao], [DtPedido], [ValorDesconto], [ValorTotal], [Observacoes], [ValorEntrega], [AplicarDesconto], [ObservacaoCupom], [IDOrigemPedido], [PermitirAlterar], [IDEntregador])
           OUTPUT INSERTED.IDPedido
           VALUES
-              (@IDCliente, @IDTipoPedido, @IDStatusPedido, @IDTipoDesconto, @IDTaxaEntrega, @GUIDIdentificacao, GetDate(), @ValorDesconto, @ValorTotal, @Observacoes, @ValorEntrega, @AplicarDesconto, @ObservacaoCupom, @IDOrigemPedido, @PermitirAlterar, @IDEntregador)
+              (@IDCliente, @IDTipoPedido, @IDStatusPedido, @IDTipoDesconto, @IDTaxaEntrega, @GUIDIdentificacao, @GUIDMovimentacao, GetDate(), @ValorDesconto, @ValorTotal, @Observacoes, @ValorEntrega, @AplicarDesconto, @ObservacaoCupom, @IDOrigemPedido, @PermitirAlterar, @IDEntregador)
       `);
 
   const insertedId = result.recordset[0].IDPedido;
-  console.log("insertedId", insertedId);
   return insertedId;
 };
 
 const adicionarProdutos = async (pedido, idPedido) => {
-  console.log("adicionarProdutos");
-  // console.log("idPedido", idPedido);
-  // console.log("pedido", pedido);
-
   const pool = await getPool();
 
   for (const item of pedido.items) {
-    console.log("item", item.name);
     const produto = await carregarProduto(item);
     const idPedidoProduto = await adicionarPedidoProduto(idPedido, produto, null, item);
     for (const subItem of item.subItems) {
@@ -142,13 +181,6 @@ const carregarProduto = async (item) => {
 };
 
 const adicionarPedidoProduto = async (idPedido, produto, idPedidoProdutoPai, item) => {
-  console.log("adicionarPedidoProduto");
-
-  console.log("produto", produto);
-  // console.log("idPedido", idPedido);
-  // console.log("produto", produto);
-  // console.log("item", item);
-
   const pool = await getPool();
 
   const idPDV = 13;
@@ -176,10 +208,96 @@ const adicionarPedidoProduto = async (idPedido, produto, idPedidoProdutoPai, ite
           VALUES
               (@IDPedido, @IDProduto, @IDPedidoProduto_pai, @IDPDV, @IDUsuario, @Quantidade, @ValorUnitario, @Notas, getDate(), @Cancelado, @RetornarAoEstoque)
       `);
-
-  // console.log(`Inserted ID: ${result.recordset[0].IDPedidoProduto}`);
 };
 
-const adicionarPagamentos = async () => {};
+const carregarTipoPagamento = async (pagamento) => {
+  if (pagamento.prepaid) return config.tipoPagamento.anotaai;
+
+  switch (pagamento.name) {
+    case "money":
+      return config.tipoPagamento.dinheiro;
+    case "card":
+      return config.tipoPagamento.credito;
+    case "debit_card":
+      return config.tipoPagamento.debito;
+    case "pix":
+      return config.tipoPagamento.pix;
+    default:
+      return config.tipoPagamento.outros;
+  }
+};
+
+const adicionarPedidoPagamento = async (idPedido, tipoPagamento, pagamento) => {
+  const pool = await getPool();
+
+  const idGateway = tipoPagamento.IDGateway === 0 ? null : tipoPagamento.IDGateway;
+
+  const result = await pool
+    .request()
+    .input("IDPedido", sql.Int, idPedido)
+    .input("IDTipoPagamento", sql.Int, tipoPagamento.IDTipoPagamento)
+    .input("IDUsuarioPagamento", sql.Int, config.usuario.IDUsuario)
+    .input("Valor", sql.Decimal(18, 2), pagamento.value)
+    .input("Excluido", sql.Bit, 0)
+    .input("IDGateway", idGateway)
+    .input("DataPagamento", sql.DateTime, new Date()).query(`
+      INSERT INTO tbPedidoPagamento
+        (IDPedido, IDTipoPagamento, IDUsuarioPagamento, Valor, Excluido, IDGateway, DataPagamento)
+      VALUES
+        (@IDPedido, @IDTipoPagamento, @IDUsuarioPagamento, @Valor, @Excluido, @IDGateway, @DataPagamento)
+    `);
+
+  return {
+    name: tipoPagamento.Nome,
+    value: parseFloat(pagamento.value),
+  };
+};
+
+const adicionarPagamentos = async (pedido, idPedido) => {
+  const pool = await getPool();
+  const pagamentos = [];
+
+  for (const pagamento of pedido.payments) {
+    const tipoPagamento = await carregarTipoPagamento(pagamento);
+    const pagamentoInfo = await adicionarPedidoPagamento(idPedido, tipoPagamento, pagamento);
+    pagamentos.push(pagamentoInfo);
+  }
+
+  return pagamentos;
+};
+
+const formatarTicket = (pedido, cliente, pagamentos) => {
+  let ticket = ` *** Anota-ai #${pedido.shortReference} ***\r\n`;
+  ticket += `Data do Pedido: ${new Date(pedido.createdAt).toLocaleString()}\r\n`;
+  ticket += `Cliente: ${cliente.name}\r\n`;
+  ticket += `Telefone: (${cliente.phone.substring(0, 2)}) ${cliente.phone.substring(2)}\r\n`;
+  ticket += `Endereço: ${pedido.deliveryAddress.formattedAddress}\r\n`;
+  ticket += `Cidade: ${pedido.deliveryAddress.city} - ${pedido.deliveryAddress.state}\r\n`;
+  ticket += `CEP: ${pedido.deliveryAddress.postalCode}\r\n`;
+  ticket += `Referência: ${pedido.deliveryAddress.reference}\r\n`;
+  ticket += `Complemento: ${pedido.deliveryAddress.complement}\r\n\r\n`;
+
+  ticket += `Itens:\r\n`;
+  pedido.items.forEach((item) => {
+    ticket += `  - ${item.name} (x${item.quantity}): R$ ${item.price.toFixed(2)}\r\n`;
+    if (item.observation) ticket += `    Observações: ${item.observation}\r\n`;
+  });
+
+  ticket += `\r\nDescontos:\r\n`;
+  pedido.discounts.forEach((discount) => {
+    ticket += `  - ${discount.tag}: R$ ${discount.amount.toFixed(2)}\r\n`;
+  });
+  ticket += `\r\nTaxa de Entrega: R$ ${pedido.deliveryFee.toFixed(2)}\r\n`;
+
+  ticket += `\r\nPagamentos:\r\n`;
+  pagamentos.forEach((pagamento) => {
+    const valor = parseFloat(pagamento.value);
+    ticket += `  - ${pagamento.name}: R$ ${valor.toFixed(2)}\r\n`;
+  });
+
+  ticket += `\r\nTotal: R$ ${pedido.total.toFixed(2)}\r\n`;
+
+  return ticket;
+};
 
 module.exports = { inserirPedidoNoPDVSeven };
