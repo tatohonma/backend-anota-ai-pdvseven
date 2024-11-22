@@ -31,7 +31,7 @@ const processarPedidosImportacao = async () => {
         });
 
         const pedidoCompleto = detalhesResponse.data.info;
-        // console.log("inserirPedido")
+        // console.log("inserirPedido", pedidoCompleto)
         inserirPedidoNoPDVSeven(pedidoCompleto);
       }
     }

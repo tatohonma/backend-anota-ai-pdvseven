@@ -12,16 +12,17 @@ const inserirPedidoNoPDVSeven = async (pedido) => {
     config = getConfiguracoes();
 
     const idCliente = await adicionarCliente(pedido);
-    const idPedido = await adicionarPedido(pedido, idCliente);
-    adicionarProdutos(pedido, idPedido);
-    const pagamentos = await adicionarPagamentos(pedido, idPedido);
+    const  {insertedId, guid } = await adicionarPedido(pedido, idCliente);
+    adicionarProdutos(pedido, insertedId);
+    const pagamentos = await adicionarPagamentos(pedido, insertedId);
+    adicionarTags(pedido, guid)
 
     const ticket = formatarTicket(pedido, pedido.customer, pagamentos);
     // salvar o ticket em tbPedido.observacoes
     const pool = await getPool();
     await pool
       .request()
-      .input("IDPedido", sql.Int, idPedido)
+      .input("IDPedido", sql.Int, insertedId)
       .input("Observacoes", sql.NVarChar(sql.MAX), ticket)
       .query(`UPDATE tbPedido SET Observacoes = @Observacoes WHERE IDPedido = @IDPedido`);
 
@@ -125,6 +126,8 @@ const adicionarPedido = async (pedido, idCliente) => {
   const aplicarDesconto = 0;
   const observacaoCupom = "";
 
+  const guid =  uuidv4()
+
   const result = await pool
     .request()
     .input("IDCliente", sql.Int, idCliente)
@@ -132,7 +135,7 @@ const adicionarPedido = async (pedido, idCliente) => {
     .input("IDStatusPedido", sql.Int, 60)
     .input("IDTipoDesconto", sql.Int, idTipoDesconto)
     .input("IDTaxaEntrega", sql.Int, idTaxaEntrega)
-    .input("GUIDIdentificacao", sql.NVarChar(50), uuidv4())
+    .input("GUIDIdentificacao", sql.NVarChar(50),guid)
     .input("GUIDMovimentacao", sql.NVarChar(50), uuidv4())
     .input("ValorDesconto", sql.Decimal(18, 2), valorDesconto)
     .input("ValorTotal", sql.Decimal(18, 2), pedido.total)
@@ -151,7 +154,7 @@ const adicionarPedido = async (pedido, idCliente) => {
       `);
 
   const insertedId = result.recordset[0].IDPedido;
-  return insertedId;
+  return {insertedId, guid };
 };
 
 const adicionarProdutos = async (pedido, idPedido) => {
@@ -299,5 +302,34 @@ const formatarTicket = (pedido, cliente, pagamentos) => {
 
   return ticket;
 };
+
+const adicionarTags = async (info, guid) => {
+  const pool = await getPool();
+  const DtInclusao = new Date()
+
+  const tags = [
+    { chave: 'anotaai-customerId', valor: info.customer.id },
+    { chave: 'anotaai-_orderId', valor: info._id },
+    { chave: 'anotaai-shortReference', valor: info.shortReference },
+    { chave: 'anotaai-Type', valor: info.type },
+    { chave: 'anotaai-status', valor: info.check },
+  ];
+
+  for (const tag of tags) {
+    await pool.request()
+    .input("GUIDIdentificacao",  sql.VarChar, guid)
+    .input('Chave', sql.NVarChar, tag.chave)
+    .input('Valor', sql.NVarChar, tag.valor.toString())
+    .input('DtInclusao', sql.DateTime, DtInclusao)
+    .query(`
+        INSERT INTO tbTag (GUIDIdentificacao, Chave, Valor, DtInclusao)
+        VALUES (@GUIDIdentificacao, @Chave, @Valor, @DtInclusao)
+    `);
+  }
+
+  console.log('Tags adicionadas com sucesso.');
+  
+  return guid
+}
 
 module.exports = { inserirPedidoNoPDVSeven };
