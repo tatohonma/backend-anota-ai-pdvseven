@@ -2,6 +2,10 @@ const sql = require("mssql");
 const { v4: uuidv4 } = require("uuid");
 const { getPool } = require("./config/db");
 const { getConfiguracoes } = require("./config/pdv7");
+const {anotaaiApi} = require("./config/axios")
+
+const {procurarTagGUIDChave, atualizarValorTag} = require("./services/tag")
+
 
 let config = {};
 
@@ -332,4 +336,46 @@ const adicionarTags = async (info, guid) => {
   return guid
 }
 
-module.exports = { inserirPedidoNoPDVSeven };
+const sincronisarStatus = async ({ pedido }) => {
+  const statusTag = await procurarTagGUIDChave({chave: "anotaai-status", GUID: pedido.GUIDIdentificacao})
+  const anotaaiIDTag = await procurarTagGUIDChave({chave: "anotaai-_orderId", GUID: pedido.GUIDIdentificacao})
+  
+  const statusPvdAnotaaiMap = {
+    10: "1", // Aberto - Em produção
+    20: "2", // Enviado - Pronto
+    40: "3", // Finalizado - Finalizado (Pedido concluido)
+    50: "5", // Cancelado - Negado
+    60: "0", // Não confirmado - Em analise
+  }
+
+  if(statusPvdAnotaaiMap[pedido.IDStatusPedido] !==  statusTag.Valor){
+    console.log(`[ SINCRONIZANDO PEDIDO ${pedido.IDPedido}]`);
+    
+      if(pedido.IDStatusPedido === 10){
+        console.log("confirmando pedido");
+        const response = await anotaaiApi.post(`/order/accept/${anotaaiIDTag.Valor}`)
+        await atualizarValorTag({GUID: pedido.GUIDIdentificacao, chave: "anotaai-status", valor: response.data.info.check.toString()})
+      }
+
+      if(pedido.IDStatusPedido === 50){
+        console.log("cancelando pedido");
+        const response = await anotaaiApi.post(`/order/cancel/${anotaaiIDTag.Valor}`)
+        await atualizarValorTag({GUID: pedido.GUIDIdentificacao, chave: "anotaai-status", valor: response.data.info.check.toString()})
+      }
+
+      
+      if(pedido.IDStatusPedido === 20){
+        console.log("enviando pedido");
+        const response = await anotaaiApi.post(`/order/ready/${anotaaiIDTag.Valor}`)
+        await atualizarValorTag({GUID: pedido.GUIDIdentificacao, chave: "anotaai-status", valor: response.data.info.check.toString()})
+      }
+
+      if(pedido.IDStatusPedido === 40){
+        console.log("finalizando pedido");
+        const response = await anotaaiApi.post(`/order/finalize/${anotaaiIDTag.Valor}`)
+        await atualizarValorTag({GUID: pedido.GUIDIdentificacao, chave: "anotaai-status", valor: response.data.info.check.toString()})
+      }
+  }
+}
+
+module.exports = { inserirPedidoNoPDVSeven, sincronisarStatus };
