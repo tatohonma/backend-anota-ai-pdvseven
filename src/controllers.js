@@ -25,12 +25,14 @@ const processarPedidosImportacao = async () => {
     for (const pedido of pedidos) {
       const tag = await procurarTagChaveValor({chave: "anotaai-_orderId", valor: pedido._id})
 
-      if(tag.length === 0){
+     if(tag.length === 0){
+      if(pedido.check === 0){
         const detalhesResponse = await anotaaiApi.get(`/ping/get/${pedido._id}`);
         const pedidoCompleto = detalhesResponse.data.info;
         // console.log("inserirPedido")
         inserirPedidoNoPDVSeven(pedidoCompleto);
-      }
+        }
+     }
     }
   } catch (error) {
     console.error("Erro ao importar pedidos:", error);
@@ -38,7 +40,6 @@ const processarPedidosImportacao = async () => {
 };
 
 const processarPedidosExportacao = async () => {
-  console.log("esportando pedidos...");
   const pool = await getPool()
   
   try {
