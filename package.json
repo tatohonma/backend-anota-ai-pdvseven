@@ -14,7 +14,9 @@
     "axios": "^1.7.7",
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
-    "mssql": "^11.0.1"
+    "morgan": "^1.10.0",
+    "mssql": "^11.0.1",
+    "uuid": "^10.0.0"
   },
   "devDependencies": {
     "cross-env": "^7.0.3",
