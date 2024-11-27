@@ -7,6 +7,7 @@ const {obterMotivoCancelamento} = require("./services/motivoCancelamento")
 
 const {procurarTagGUIDChave, atualizarValorTag} = require("./services/tag")
 
+const {atualizarStatusPedido} = require("./services/pedido");
 
 let config = {};
 
@@ -339,48 +340,81 @@ const adicionarTags = async (info, guid) => {
 
 const sincronisarStatus = async ({ pedido }) => {
   try {
-    const statusTag = await procurarTagGUIDChave({chave: "anotaai-status", GUID: pedido.GUIDIdentificacao})
-    const anotaaiIDTag = await procurarTagGUIDChave({chave: "anotaai-_orderId", GUID: pedido.GUIDIdentificacao})
-    
-    const statusPvdAnotaaiMap = {
-      10: "1", // Aberto - Em produção
-      20: "2", // Enviado - Pronto
-      40: "3", // Finalizado - Finalizado (Pedido concluido)
-      50: "5", // Cancelado - Negado
-      60: "0", // Não confirmado - Em analise
+    const statusAnotaai = {
+      "em-producao": 1,
+      "pronto": 2,
+      "finalizado": 3,
+      "cancelado-negado": [4, 5],
+      "em-analise": 0,
+      "agendado": -2
     }
   
-    if(statusPvdAnotaaiMap[pedido.IDStatusPedido] !==  statusTag.Valor){
-      console.log(`[ SINCRONIZANDO PEDIDO ${pedido.IDPedido}]`);
-      
-        if(pedido.IDStatusPedido === 10){
-          console.log("confirmando pedido");
-          await anotaaiApi.post(`/order/accept/${anotaaiIDTag.Valor}`)
-          await atualizarValorTag({GUID: pedido.GUIDIdentificacao, chave: "anotaai-status", valor: statusPvdAnotaaiMap[pedido.IDStatusPedido]})
-        }
+    const statusPdv = {
+      "aberto": 10,
+      "enviado": 20,
+      "finalizado": 40,
+      "cancelado": 50,
+      "nao-confirmado": 60,
+    }
   
-        if(pedido.IDStatusPedido === 50){
-          console.log("cancelando pedido");
-          const motivo = await obterMotivoCancelamento({IDPedido: pedido.IDPedido})
-          await anotaaiApi.post(`/order/cancel/${anotaaiIDTag.Valor}`, { "justification": motivo?.Nome || "Sem justificativa/Erro ao obter justificativa." })
-          await atualizarValorTag({GUID: pedido.GUIDIdentificacao, chave: "anotaai-status", valor: statusPvdAnotaaiMap[pedido.IDStatusPedido]})
-        }
+    const statusPdvAnotaaiMap = {
+      10: [1],        // Aberto - Em produção
+      20: [2],        // Enviado - Pronto
+      40: [3],        // Finalizado - Finalizado (Pedido concluido)
+      50: [4, 5],     // Cancelado - Negado/Cancelado
+      60: [0],        // Não confirmado - Em analise
+    }
+    
+    const anotaaiTagId = await procurarTagGUIDChave({chave: "anotaai-_orderId", GUID: pedido.GUIDIdentificacao})
   
-        if(pedido.IDStatusPedido === 20){
-          console.log("enviando pedido");
-          await anotaaiApi.post(`/order/ready/${anotaaiIDTag.Valor}`)
-          await atualizarValorTag({GUID: pedido.GUIDIdentificacao, chave: "anotaai-status", valor: statusPvdAnotaaiMap[pedido.IDStatusPedido]})
-        }
+    const detalhesDoPedidoAnotaAi =  await anotaaiApi.get(`/ping/get/${anotaaiTagId.Valor}`);
+    const statusPedidoAnotaAi = detalhesDoPedidoAnotaAi.data.info.check
   
-        if(pedido.IDStatusPedido === 40){
-          console.log("finalizando pedido");
-          await anotaaiApi.post(`/order/finalize/${anotaaiIDTag.Valor}`)
-          await atualizarValorTag({GUID: pedido.GUIDIdentificacao, chave: "anotaai-status", valor: statusPvdAnotaaiMap[pedido.IDStatusPedido]})
-        }
+    const pedidoAnotaAiNegadoOuCancelado = statusAnotaai["cancelado-negado"].includes(statusPedidoAnotaAi)
+    const pedidoPdvCancelado = statusPdv["cancelado"] === pedido.IDStatusPedido
+  
+    // Atualizando localmente
+    if(pedidoAnotaAiNegadoOuCancelado){
+      if(!pedidoPdvCancelado){
+        console.log("Sincronisando status local pedido", pedido.IDPedido);
+          await atualizarValorTag({chave: "anotaai-status", GUID: pedido.GUIDIdentificacao, valor: statusPedidoAnotaAi.toString()}) 
+          await atualizarStatusPedido({ GUID: pedido.GUIDIdentificacao, IDStatusPedido: statusPdv["cancelado"] })
+        return;
+      } 
+    }
+  
+    if(!statusPdvAnotaaiMap[pedido.IDStatusPedido].includes(statusPedidoAnotaAi)){
+      console.log("Sincronisando status remoto pedido", pedido.IDPedido);
+      if(statusPdv["aberto"] === pedido.IDStatusPedido){
+        console.log("confirmando pedido");
+        const { data } =  await anotaaiApi.post(`/order/accept/${anotaaiTagId.Valor}`)
+        await atualizarValorTag({GUID: pedido.GUIDIdentificacao, chave: "anotaai-status", valor: data.info.check.toString()})
+      }
+  
+      if(statusPdv["cancelado"] === pedido.IDStatusPedido){
+        console.log("cancelando pedido");
+        const motivo = await obterMotivoCancelamento({IDPedido: pedido.IDPedido})
+        const { data } = await anotaaiApi.post(`/order/cancel/${anotaaiTagId.Valor}`, { "justification": motivo?.Nome || "Sem justificativa/Erro ao obter justificativa." })
+        await atualizarValorTag({GUID: pedido.GUIDIdentificacao, chave: "anotaai-status", valor: data.info.check.toString()})
+      }
+  
+      if(statusPdv["enviado"] === pedido.IDStatusPedido){
+        console.log("enviando pedido");
+        const { data } = await anotaaiApi.post(`/order/ready/${anotaaiTagId.Valor}`)
+        await atualizarValorTag({GUID: pedido.GUIDIdentificacao, chave: "anotaai-status", valor: data.info.check.toString()})
+      }
+  
+      if(statusPdv["finalizado"] === pedido.IDStatusPedido){
+        console.log("finalizando pedido");
+        const { data } = await anotaaiApi.post(`/order/finalize/${anotaaiTagId.Valor}`)
+        await atualizarValorTag({GUID: pedido.GUIDIdentificacao, chave: "anotaai-status", valor: data.info.check.toString()})
+      }
     }
   } catch (error) {
-    console.log("Erro ao sincronizar produtos", pedido.IDPedido);
+    console.log(error,"Ouve um erro ao sincronizar pedido", pedido.IDPedido);
   }
 }
+
+
 
 module.exports = { inserirPedidoNoPDVSeven, sincronisarStatus };
