@@ -127,10 +127,14 @@ const adicionarPedido = async (pedido, idCliente) => {
   const idOrigemPedido = config.origemPedido.IDOrigemPedido;
   const idEntregador = config.entregador.IDEntregador;
 
-  const valorDesconto = 0;
-  const observacoes = "";
-  const aplicarDesconto = 0;
+  const valorDesconto = pedido.discounts.reduce((acc, cur) => {
+    return acc + cur?.amount;
+  }, 0)
+
+  const observacoes = ""; 
+  const aplicarDesconto = valorDesconto > 0 ? 1 : 0;
   const observacaoCupom = "";
+  const taxaServicoPadrao = 0;
 
   const guid =  uuidv4()
 
@@ -151,12 +155,13 @@ const adicionarPedido = async (pedido, idCliente) => {
     .input("ObservacaoCupom", sql.NVarChar(sql.MAX), observacaoCupom)
     .input("IDOrigemPedido", sql.Int, idOrigemPedido)
     .input("PermitirAlterar", sql.Bit, 0)
+    .input("TaxaServicoPadrao", sql.Int, taxaServicoPadrao)
     .input("IDEntregador", sql.Int, idEntregador).query(`
           INSERT INTO [dbo].[tbPedido]
-              ([IDCliente], [IDTipoPedido], [IDStatusPedido], [IDTipoDesconto], [IDTaxaEntrega], [GUIDIdentificacao], [GUIDMovimentacao], [DtPedido], [ValorDesconto], [ValorTotal], [Observacoes], [ValorEntrega], [AplicarDesconto], [ObservacaoCupom], [IDOrigemPedido], [PermitirAlterar], [IDEntregador])
+              ([IDCliente], [IDTipoPedido], [IDStatusPedido], [IDTipoDesconto], [IDTaxaEntrega], [GUIDIdentificacao], [GUIDMovimentacao], [DtPedido], [ValorDesconto], [ValorTotal], [Observacoes], [ValorEntrega], [AplicarDesconto], [ObservacaoCupom], [IDOrigemPedido], [PermitirAlterar], [IDEntregador], [TaxaServicoPadrao])
           OUTPUT INSERTED.IDPedido
           VALUES
-              (@IDCliente, @IDTipoPedido, @IDStatusPedido, @IDTipoDesconto, @IDTaxaEntrega, @GUIDIdentificacao, @GUIDMovimentacao, GetDate(), @ValorDesconto, @ValorTotal, @Observacoes, @ValorEntrega, @AplicarDesconto, @ObservacaoCupom, @IDOrigemPedido, @PermitirAlterar, @IDEntregador)
+              (@IDCliente, @IDTipoPedido, @IDStatusPedido, @IDTipoDesconto, @IDTaxaEntrega, @GUIDIdentificacao, @GUIDMovimentacao, GetDate(), @ValorDesconto, @ValorTotal, @Observacoes, @ValorEntrega, @AplicarDesconto, @ObservacaoCupom, @IDOrigemPedido, @PermitirAlterar, @IDEntregador, @TaxaServicoPadrao)
       `);
 
   const insertedId = result.recordset[0].IDPedido;
