@@ -15,7 +15,7 @@ exports.procurarTagChaveValor = async({chave, valor}) => {
       AND Chave = @Chave;
     `);
 
-    return tag.recordset
+    return tag.recordset[0]
 }
 
 exports.procurarTagGUIDChave = async ({chave, GUID}) => {
@@ -48,6 +48,23 @@ exports.atualizarValorTag = async ({GUID, valor, chave}) => {
     SET Valor = @Valor
     WHERE GUIDIdentificacao = @GUIDIdentificacao
       AND Chave = @Chave;
+  `);
+
+  return tag
+}
+
+exports.criarTag = async ({GUID, chave, valor}) => {
+  const pool = await getPool()
+  const DtInclusao = new Date()
+
+  const tag = await pool.request()
+  .input("GUIDIdentificacao",  sql.VarChar, GUID)
+  .input('Chave', sql.NVarChar, chave)
+  .input('Valor', sql.NVarChar, valor)
+  .input('DtInclusao', sql.DateTime, DtInclusao)
+  .query(`
+      INSERT INTO tbTag (GUIDIdentificacao, Chave, Valor, DtInclusao)
+      VALUES (@GUIDIdentificacao, @Chave, @Valor, @DtInclusao)
   `);
 
   return tag

@@ -5,21 +5,23 @@ const { getConfiguracoes } = require("./config/pdv7");
 const {anotaaiApi} = require("./config/axios")
 const {obterMotivoCancelamento} = require("./services/motivoCancelamento")
 
-const {procurarTagGUIDChave, atualizarValorTag} = require("./services/tag")
+const {procurarTagGUIDChave, procurarTagChaveValor, atualizarValorTag, criarTag} = require("./services/tag")
 
 const {atualizarStatusPedido} = require("./services/pedido");
+const { criarNovoCliente, atualizarCliente, buscarClientePorGUID } = require("./services/cliente");
+const { buscarIdEstado } = require("./services/estado");
 
 let config = {};
 
 const inserirPedidoNoPDVSeven = async (pedido) => {
-  console.log("Adicionar pedido", pedido._id);
+  console.log(`Adicionar pedido ${pedido._id}\n`);
 
   try {
     config = getConfiguracoes();
 
-    const idCliente = await adicionarCliente(pedido);
-    const  {insertedId, guid } = await adicionarPedido(pedido, idCliente);
-    adicionarTags(pedido, guid)
+    const idCliente = await adicionarCliente({pedido});
+    
+    const insertedId = await adicionarPedido(pedido, idCliente);
     adicionarProdutos(pedido, insertedId);
     const pagamentos = await adicionarPagamentos(pedido, insertedId);
 
@@ -41,83 +43,64 @@ const inserirPedidoNoPDVSeven = async (pedido) => {
   }
 };
 
-const adicionarCliente = async (pedido) => {
-  const pool = await getPool();
+const adicionarCliente = async ({ pedido }) => {
+  const clienteExistenteTag = await procurarTagChaveValor({ chave: "anotaai-customerId", valor: pedido.customer.id })
 
   const ddd = pedido.customer.phone.substring(0, 2);
   const telefone = pedido.customer.phone.substring(2);
-  const guid = uuidv4();
+  const idEstado = await buscarIdEstado({estado: pedido.deliveryAddress.state})
 
-  const resultCliente = await pool
-    .request()
-    .query(
-      `SELECT IDCliente FROM tbCliente WHERE Telefone1DDD=${ddd} AND Telefone1Numero=${telefone}`
-    );
+  if(!clienteExistenteTag){
+    const guid = uuidv4()
 
-  let idEstado = null;
-  const resultEstado = await pool
-    .request()
-    .input("Sigla", sql.VarChar, pedido.deliveryAddress.state)
-    .query(`SELECT IDEstado FROM tbEstado WHERE Sigla = @Sigla`);
+    const cliente = await criarNovoCliente({
+      bairro: pedido.customer.neighborhood,
+      cep: pedido.customer.postalCode,
+      cidade: pedido.customer.city,
+      complemento: pedido.customer.complement,
+      ddd,
+      telefone,
+      idEstado, 
+      nomeCompleto: pedido.customer.name,
+      enderecoDeReferenia: pedido.customer.reference,
+      nomeRua: pedido.customer.streetName,
+      numeroRua: pedido.customer.streetNumber,
+      guid,
+      documento: pedido.customer.taxPayerIdentificationNumber,
+    })
 
-  if (resultEstado.recordset.length > 0) {
-    idEstado = resultEstado.recordset[0].IDEstado;
-  } else {
-    throw new Error(`Estado não encontrado para a sigla: ${pedido.deliveryAddress.state}`);
+    await criarTag({ 
+      GUID: guid, 
+      chave: "anotaai-customerId", 
+      valor: pedido.customer.id,
+    })
+
+    console.log("✅ Novo cliente adicionado");
+
+    return cliente.IDCliente
   }
 
-  if (resultCliente.recordset.length > 0) {
-    const idCliente = resultCliente.recordset[0].IDCliente;
+  const clienteExistente = await buscarClientePorGUID({ guid: clienteExistenteTag.GUIDIdentificacao })
 
-    await pool
-      .request()
-      .input("Endereco", sql.VarChar, pedido.customer.streetName)
-      .input("EnderecoNumero", sql.VarChar, pedido.customer.streetNumber)
-      .input("Complemento", sql.VarChar, pedido.customer.complement)
-      .input("Bairro", sql.VarChar, pedido.customer.neighborhood)
-      .input("Cidade", sql.VarChar, pedido.customer.city)
-      .input("IDEstado", sql.Int, idEstado)
-      .input("CEP", sql.Int, pedido.customer.postalCode)
-      .input("EnderecoReferencia", sql.VarChar, pedido.customer.reference)
-      .input("IDCliente", sql.Int, idCliente).query(`UPDATE tbCliente SET 
-        Endereco = @Endereco, 
-        EnderecoNumero = @EnderecoNumero, 
-        Complemento = @Complemento, 
-        Bairro = @Bairro, 
-        Cidade = @Cidade, 
-        IDEstado = @IDEstado,
-        CEP = @CEP, 
-        EnderecoReferencia = @EnderecoReferencia 
-        WHERE IDCliente = @IDCliente`);
+  await atualizarCliente({
+    bairro: pedido.customer.neighborhood,
+    cep: pedido.customer.postalCode,
+    cidade: pedido.customer.city,
+    complemento: pedido.customer.complement,
+    enderecoDeReferenia: pedido.customer.reference,
+    nomeRua: pedido.customer.streetName,
+    numeroRua: pedido.customer.streetNumber,
+    idCliente: clienteExistente.IDCliente,
+    idEstado,
+    ddd,
+    telefone,
+    documento: pedido.customer.taxPayerIdentificationNumber,
+  })
 
-    return idCliente;
-  }
+  console.log("✅ Dados do cliente atualizado");
 
-  const result = await pool
-    .request()
-    .input("NomeCompleto", sql.VarChar, pedido.customer.name)
-    .input("Telefone1DDD", sql.Int, ddd)
-    .input("Telefone1Numero", sql.Int, telefone)
-    .input("Endereco", sql.VarChar, pedido.customer.streetName)
-    .input("EnderecoNumero", sql.VarChar, pedido.customer.streetNumber)
-    .input("Complemento", sql.VarChar, pedido.customer.complement)
-    .input("Bairro", sql.VarChar, pedido.customer.neighborhood)
-    .input("Cidade", sql.VarChar, pedido.customer.city)
-    .input("IDEstado", sql.Int, idEstado)
-    .input("CEP", sql.Int, pedido.customer.postalCode)
-    .input("EnderecoReferencia", sql.VarChar, pedido.customer.reference)
-    .input("GUIDIdentificacao", sql.VarChar, guid)
-    .input("Bloqueado", sql.Bit, 0).query(`
-        INSERT INTO tbCliente 
-          (NomeCompleto, Telefone1DDD, Telefone1Numero, Endereco, EnderecoNumero, Complemento, Bairro, Cidade, IDEstado, CEP, EnderecoReferencia, GUIDIdentificacao, Bloqueado, DtInclusao) 
-        OUTPUT INSERTED.IDCliente
-        VALUES 
-          (@NomeCompleto, @Telefone1DDD, @Telefone1Numero, @Endereco, @EnderecoNumero, @Complemento, @Bairro, @Cidade, @IDEstado, @CEP, @EnderecoReferencia, @GUIDIdentificacao, @Bloqueado, GETDATE())
-      `);
-
-  const insertedId = result.recordset[0].IDCliente;
-  return insertedId;
-};
+  return clienteExistente.IDCliente
+}
 
 const adicionarPedido = async (pedido, idCliente) => {
   const pool = await getPool();
@@ -164,8 +147,20 @@ const adicionarPedido = async (pedido, idCliente) => {
               (@IDCliente, @IDTipoPedido, @IDStatusPedido, @IDTipoDesconto, @IDTaxaEntrega, @GUIDIdentificacao, @GUIDMovimentacao, GetDate(), @ValorDesconto, @ValorTotal, @Observacoes, @ValorEntrega, @AplicarDesconto, @ObservacaoCupom, @IDOrigemPedido, @PermitirAlterar, @IDEntregador, @TaxaServicoPadrao)
       `);
 
-  const insertedId = result.recordset[0].IDPedido;
-  return {insertedId, guid };
+  const tags = [
+    { chave: 'anotaai-_orderId', valor: pedido._id },
+    { chave: 'anotaai-shortReference', valor: pedido.shortReference },
+    { chave: 'anotaai-Type', valor: pedido.type },
+    { chave: 'anotaai-status', valor: pedido.check },
+  ];
+
+  for (const tag of tags) {
+    await criarTag({ GUID: guid, chave: tag.chave, valor: tag.valor.toString()})
+  }
+
+  console.log('✅ Tags do pedido adicionadas com sucesso.');
+
+  return result.recordset[0].IDPedido;
 };
 
 const adicionarProdutos = async (pedido, idPedido) => {
@@ -313,35 +308,6 @@ const formatarTicket = (pedido, cliente, pagamentos) => {
 
   return ticket;
 };
-
-const adicionarTags = async (info, guid) => {
-  const pool = await getPool();
-  const DtInclusao = new Date()
-
-  const tags = [
-    { chave: 'anotaai-customerId', valor: info.customer.id },
-    { chave: 'anotaai-_orderId', valor: info._id },
-    { chave: 'anotaai-shortReference', valor: info.shortReference },
-    { chave: 'anotaai-Type', valor: info.type },
-    { chave: 'anotaai-status', valor: info.check },
-  ];
-
-  for (const tag of tags) {
-    await pool.request()
-    .input("GUIDIdentificacao",  sql.VarChar, guid)
-    .input('Chave', sql.NVarChar, tag.chave)
-    .input('Valor', sql.NVarChar, tag.valor.toString())
-    .input('DtInclusao', sql.DateTime, DtInclusao)
-    .query(`
-        INSERT INTO tbTag (GUIDIdentificacao, Chave, Valor, DtInclusao)
-        VALUES (@GUIDIdentificacao, @Chave, @Valor, @DtInclusao)
-    `);
-  }
-
-  console.log('Tags adicionadas com sucesso.');
-  
-  return guid
-}
 
 const sincronisarStatus = async ({ pedido }) => {
   try {

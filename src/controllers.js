@@ -26,8 +26,10 @@ const processarPedidosImportacao = async () => {
     const tag = await procurarTagChaveValor({chave: "anotaai-_orderId", valor: pedido._id})
 
     // Adiciona pedidos ao pvd7
-     if(tag.length === 0){
+     if(!tag){
       if(pedido.check === 0){
+        console.log("adicionando pedido", pedido);
+        
         const detalhesResponse = await anotaaiApi.get(`/ping/get/${pedido._id}`);
         const pedidoCompleto = detalhesResponse.data.info;
         // console.log("inserirPedido")
