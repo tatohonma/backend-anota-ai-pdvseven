@@ -75,9 +75,6 @@ exports.buscarClientePorGUID = async ({ guid }) => {
     FROM [dbo].[tbCliente]
     WHERE GUIDIdentificacao = @GUIDIdentificacao;
   `);
-
-  console.log("Result",result, guid);
   
-
   return result.recordset[0]
 }
