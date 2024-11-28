@@ -227,6 +227,8 @@ const adicionarPedidoProduto = async (idPedido, produto, idPedidoProdutoPai, ite
           VALUES
               (@IDPedido, @IDProduto, @IDPedidoProduto_pai, @IDPDV, @IDUsuario, @Quantidade, @ValorUnitario, @Notas, getDate(), @Cancelado, @RetornarAoEstoque)
       `);
+
+    return result.recordset[0].IDPedidoProduto
 };
 
 const carregarTipoPagamento = async (pagamento) => {
