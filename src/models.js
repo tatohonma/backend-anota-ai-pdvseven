@@ -251,12 +251,14 @@ const adicionarPedidoPagamento = async (idPedido, tipoPagamento, pagamento) => {
 
   const idGateway = tipoPagamento.IDGateway === 0 ? null : tipoPagamento.IDGateway;
 
+  const valorDoPagamento = pagamento.code === "money" ? pagamento.changeFor : pagamento.value
+
   const result = await pool
     .request()
     .input("IDPedido", sql.Int, idPedido)
     .input("IDTipoPagamento", sql.Int, tipoPagamento.IDTipoPagamento)
     .input("IDUsuarioPagamento", sql.Int, config.usuario.IDUsuario)
-    .input("Valor", sql.Decimal(18, 2), pagamento.value)
+    .input("Valor", sql.Decimal(18, 2), valorDoPagamento)
     .input("Excluido", sql.Bit, 0)
     .input("IDGateway", idGateway)
     .input("DataPagamento", sql.DateTime, new Date()).query(`
