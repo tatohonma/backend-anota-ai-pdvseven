@@ -251,7 +251,7 @@ const adicionarPedidoPagamento = async (idPedido, tipoPagamento, pagamento) => {
 
   const idGateway = tipoPagamento.IDGateway === 0 ? null : tipoPagamento.IDGateway;
 
-  const valorDoPagamento = pagamento.code === "money" ? pagamento.changeFor : pagamento.value
+  const valorDoPagamento = pagamento.code === "money" ? pagamento?.changeFor || pagamento.value : pagamento.value
 
   const result = await pool
     .request()
