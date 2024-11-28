@@ -48,25 +48,35 @@ const adicionarCliente = async ({ pedido }) => {
 
   const ddd = pedido.customer.phone.substring(0, 2);
   const telefone = pedido.customer.phone.substring(2);
-  const idEstado = await buscarIdEstado({estado: pedido.deliveryAddress.state})
+  const idEstado = await buscarIdEstado({ estado: pedido.deliveryAddress.state })
+
+  const bairro = pedido.deliveryAddress.neighborhood;
+  const cep =  pedido.deliveryAddress.postalCode;
+  const cidade=  pedido.deliveryAddress.city;
+  const complemento = pedido.deliveryAddress.complement;
+  const nomeCompleto = pedido.customer.name;
+  const enderecoDeReferenia =  pedido.deliveryAddress.reference;
+  const nomeRua = pedido.deliveryAddress.streetName;
+  const numeroRua = pedido.deliveryAddress.streetNumber;
+  const documento = pedido.customer.taxPayerIdentificationNumber;
 
   if(!clienteExistenteTag){
     const guid = uuidv4()
 
     const cliente = await criarNovoCliente({
-      bairro: pedido.customer.neighborhood,
-      cep: pedido.customer.postalCode,
-      cidade: pedido.customer.city,
-      complemento: pedido.customer.complement,
+      bairro,
+      cep,
+      cidade,
+      complemento,
       ddd,
       telefone,
       idEstado, 
-      nomeCompleto: pedido.customer.name,
-      enderecoDeReferenia: pedido.customer.reference,
-      nomeRua: pedido.customer.streetName,
-      numeroRua: pedido.customer.streetNumber,
+      nomeCompleto,
+      enderecoDeReferenia,
+      nomeRua,
+      numeroRua,
       guid,
-      documento: pedido.customer.taxPayerIdentificationNumber,
+      documento,
     })
 
     await criarTag({ 
@@ -83,18 +93,18 @@ const adicionarCliente = async ({ pedido }) => {
   const clienteExistente = await buscarClientePorGUID({ guid: clienteExistenteTag.GUIDIdentificacao })
 
   await atualizarCliente({
-    bairro: pedido.customer.neighborhood,
-    cep: pedido.customer.postalCode,
-    cidade: pedido.customer.city,
-    complemento: pedido.customer.complement,
-    enderecoDeReferenia: pedido.customer.reference,
-    nomeRua: pedido.customer.streetName,
-    numeroRua: pedido.customer.streetNumber,
+    bairro,
+    cep,
+    cidade,
+    complemento,
+    enderecoDeReferenia,
+    nomeRua,
+    numeroRua,
     idCliente: clienteExistente.IDCliente,
     idEstado,
     ddd,
     telefone,
-    documento: pedido.customer.taxPayerIdentificationNumber,
+    documento,
   })
 
   console.log("✅ Dados do cliente atualizado");
