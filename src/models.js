@@ -227,6 +227,8 @@ const adicionarPedidoProduto = async (idPedido, produto, idPedidoProdutoPai, ite
           VALUES
               (@IDPedido, @IDProduto, @IDPedidoProduto_pai, @IDPDV, @IDUsuario, @Quantidade, @ValorUnitario, @Notas, getDate(), @Cancelado, @RetornarAoEstoque)
       `);
+
+    return result.recordset[0].IDPedidoProduto
 };
 
 const carregarTipoPagamento = async (pagamento) => {
@@ -251,7 +253,7 @@ const adicionarPedidoPagamento = async (idPedido, tipoPagamento, pagamento) => {
 
   const idGateway = tipoPagamento.IDGateway === 0 ? null : tipoPagamento.IDGateway;
 
-  const valorDoPagamento = pagamento.code === "money" ? pagamento.changeFor : pagamento.value
+  const valorDoPagamento = pagamento.code === "money" ? pagamento?.changeFor || pagamento.value : pagamento.value
 
   const result = await pool
     .request()
