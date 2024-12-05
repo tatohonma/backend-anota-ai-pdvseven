@@ -25,14 +25,14 @@ const iniciarConfiguracoes = async () => {
 
     let origemPedidoResult = await pool
       .request()
-      .query(`SELECT * FROM tbOrigemPedido WHERE nome='anota-ai'`);
+      .query(`SELECT * FROM tbOrigemPedido WHERE nome='anotaai'`);
     if (origemPedidoResult.recordset.length === 0) {
-      await pool.request().query(`INSERT INTO tbOrigemPedido (nome) VALUES ('anota-ai')`);
+      await pool.request().query(`INSERT INTO tbOrigemPedido (nome) VALUES ('anotaai')`);
       console.log("  - OrigemPedido adicionada com sucesso.");
 
       origemPedidoResult = await pool
         .request()
-        .query(`SELECT * FROM tbOrigemPedido WHERE nome='anota-ai'`);
+        .query(`SELECT * FROM tbOrigemPedido WHERE nome='anotaai'`);
     }
     configuracoes.origemPedido = origemPedidoResult.recordset[0];
     console.log("  - OrigemPedido carregada");
