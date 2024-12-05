@@ -102,6 +102,7 @@ const adicionarCliente = async ({ pedido }) => {
     numeroRua,
     idCliente: clienteExistente.IDCliente,
     idEstado,
+    nomeCompleto,
     ddd,
     telefone,
     documento,
