@@ -2,10 +2,10 @@ const sql = require("mssql");
 const { v4: uuidv4 } = require("uuid");
 const { getPool } = require("./config/db");
 const { getConfiguracoes } = require("./config/pdv7");
-const {anotaaiApi} = require("./config/axios")
-const {obterMotivoCancelamento} = require("./services/motivoCancelamento")
+const { anotaaiApi } = require("./config/axios")
+const { obterMotivoCancelamento } = require("./services/motivoCancelamento")
 
-const {procurarTagGUIDChave, atualizarValorTag} = require("./services/tag")
+const { procurarTagGUIDChave, atualizarValorTag } = require("./services/tag")
 
 
 let config = {};
@@ -17,7 +17,7 @@ const inserirPedidoNoPDVSeven = async (pedido) => {
     config = getConfiguracoes();
 
     const idCliente = await adicionarCliente(pedido);
-    const  {insertedId, guid } = await adicionarPedido(pedido, idCliente);
+    const { insertedId, guid } = await adicionarPedido(pedido, idCliente);
     adicionarTags(pedido, guid)
     adicionarProdutos(pedido, insertedId);
     const pagamentos = await adicionarPagamentos(pedido, insertedId);
@@ -131,7 +131,7 @@ const adicionarPedido = async (pedido, idCliente) => {
   const aplicarDesconto = 0;
   const observacaoCupom = "";
 
-  const guid =  uuidv4()
+  const guid = uuidv4()
 
   const result = await pool
     .request()
@@ -140,7 +140,7 @@ const adicionarPedido = async (pedido, idCliente) => {
     .input("IDStatusPedido", sql.Int, 60)
     .input("IDTipoDesconto", sql.Int, idTipoDesconto)
     .input("IDTaxaEntrega", sql.Int, idTaxaEntrega)
-    .input("GUIDIdentificacao", sql.NVarChar(50),guid)
+    .input("GUIDIdentificacao", sql.NVarChar(50), guid)
     .input("GUIDMovimentacao", sql.NVarChar(50), uuidv4())
     .input("ValorDesconto", sql.Decimal(18, 2), valorDesconto)
     .input("ValorTotal", sql.Decimal(18, 2), pedido.total)
@@ -159,7 +159,7 @@ const adicionarPedido = async (pedido, idCliente) => {
       `);
 
   const insertedId = result.recordset[0].IDPedido;
-  return {insertedId, guid };
+  return { insertedId, guid };
 };
 
 const adicionarProdutos = async (pedido, idPedido) => {
@@ -287,8 +287,14 @@ const formatarTicket = (pedido, cliente, pagamentos) => {
 
   ticket += `Itens:\r\n`;
   pedido.items.forEach((item) => {
-    ticket += `  - ${item.name} (x${item.quantity}): R$ ${item.price.toFixed(2)}\r\n`;
+    ticket += `  - ${item.quantity.toFixed(2)}  ${item.name}: R$ ${item.price.toFixed(2)}\r\n`;
     if (item.observation) ticket += `    Observações: ${item.observation}\r\n`;
+
+    //adicionar subitens ao ticket
+    item.subItems.forEach((subItem) => {
+      ticket += `    - ${subItem.quantity.toFixed(2)}  ${subItem.name}: R$ ${subItem.price.toFixed(2)}\r\n`;
+      if (subItem.observation) ticket += `      Observações: ${subItem.observation}\r\n`;
+    });
   });
 
   ticket += `\r\nDescontos:\r\n`;
@@ -322,26 +328,26 @@ const adicionarTags = async (info, guid) => {
 
   for (const tag of tags) {
     await pool.request()
-    .input("GUIDIdentificacao",  sql.VarChar, guid)
-    .input('Chave', sql.NVarChar, tag.chave)
-    .input('Valor', sql.NVarChar, tag.valor.toString())
-    .input('DtInclusao', sql.DateTime, DtInclusao)
-    .query(`
+      .input("GUIDIdentificacao", sql.VarChar, guid)
+      .input('Chave', sql.NVarChar, tag.chave)
+      .input('Valor', sql.NVarChar, tag.valor.toString())
+      .input('DtInclusao', sql.DateTime, DtInclusao)
+      .query(`
         INSERT INTO tbTag (GUIDIdentificacao, Chave, Valor, DtInclusao)
         VALUES (@GUIDIdentificacao, @Chave, @Valor, @DtInclusao)
     `);
   }
 
   console.log('Tags adicionadas com sucesso.');
-  
+
   return guid
 }
 
 const sincronisarStatus = async ({ pedido }) => {
   try {
-    const statusTag = await procurarTagGUIDChave({chave: "anotaai-status", GUID: pedido.GUIDIdentificacao})
-    const anotaaiIDTag = await procurarTagGUIDChave({chave: "anotaai-_orderId", GUID: pedido.GUIDIdentificacao})
-    
+    const statusTag = await procurarTagGUIDChave({ chave: "anotaai-status", GUID: pedido.GUIDIdentificacao })
+    const anotaaiIDTag = await procurarTagGUIDChave({ chave: "anotaai-_orderId", GUID: pedido.GUIDIdentificacao })
+
     const statusPvdAnotaaiMap = {
       10: "1", // Aberto - Em produção
       20: "2", // Enviado - Pronto
@@ -349,34 +355,34 @@ const sincronisarStatus = async ({ pedido }) => {
       50: "5", // Cancelado - Negado
       60: "0", // Não confirmado - Em analise
     }
-  
-    if(statusPvdAnotaaiMap[pedido.IDStatusPedido] !==  statusTag.Valor){
+
+    if (statusPvdAnotaaiMap[pedido.IDStatusPedido] !== statusTag.Valor) {
       console.log(`[ SINCRONIZANDO PEDIDO ${pedido.IDPedido}]`);
-      
-        if(pedido.IDStatusPedido === 10){
-          console.log("confirmando pedido");
-          await anotaaiApi.post(`/order/accept/${anotaaiIDTag.Valor}`)
-          await atualizarValorTag({GUID: pedido.GUIDIdentificacao, chave: "anotaai-status", valor: statusPvdAnotaaiMap[pedido.IDStatusPedido]})
-        }
-  
-        if(pedido.IDStatusPedido === 50){
-          console.log("cancelando pedido");
-          const motivo = await obterMotivoCancelamento({IDPedido: pedido.IDPedido})
-          await anotaaiApi.post(`/order/cancel/${anotaaiIDTag.Valor}`, { "justification": motivo?.Nome || "Sem justificativa/Erro ao obter justificativa." })
-          await atualizarValorTag({GUID: pedido.GUIDIdentificacao, chave: "anotaai-status", valor: statusPvdAnotaaiMap[pedido.IDStatusPedido]})
-        }
-  
-        if(pedido.IDStatusPedido === 20){
-          console.log("enviando pedido");
-          await anotaaiApi.post(`/order/ready/${anotaaiIDTag.Valor}`)
-          await atualizarValorTag({GUID: pedido.GUIDIdentificacao, chave: "anotaai-status", valor: statusPvdAnotaaiMap[pedido.IDStatusPedido]})
-        }
-  
-        if(pedido.IDStatusPedido === 40){
-          console.log("finalizando pedido");
-          await anotaaiApi.post(`/order/finalize/${anotaaiIDTag.Valor}`)
-          await atualizarValorTag({GUID: pedido.GUIDIdentificacao, chave: "anotaai-status", valor: statusPvdAnotaaiMap[pedido.IDStatusPedido]})
-        }
+
+      if (pedido.IDStatusPedido === 10) {
+        console.log("confirmando pedido");
+        await anotaaiApi.post(`/order/accept/${anotaaiIDTag.Valor}`)
+        await atualizarValorTag({ GUID: pedido.GUIDIdentificacao, chave: "anotaai-status", valor: statusPvdAnotaaiMap[pedido.IDStatusPedido] })
+      }
+
+      if (pedido.IDStatusPedido === 50) {
+        console.log("cancelando pedido");
+        const motivo = await obterMotivoCancelamento({ IDPedido: pedido.IDPedido })
+        await anotaaiApi.post(`/order/cancel/${anotaaiIDTag.Valor}`, { "justification": motivo?.Nome || "Sem justificativa/Erro ao obter justificativa." })
+        await atualizarValorTag({ GUID: pedido.GUIDIdentificacao, chave: "anotaai-status", valor: statusPvdAnotaaiMap[pedido.IDStatusPedido] })
+      }
+
+      if (pedido.IDStatusPedido === 20) {
+        console.log("enviando pedido");
+        await anotaaiApi.post(`/order/ready/${anotaaiIDTag.Valor}`)
+        await atualizarValorTag({ GUID: pedido.GUIDIdentificacao, chave: "anotaai-status", valor: statusPvdAnotaaiMap[pedido.IDStatusPedido] })
+      }
+
+      if (pedido.IDStatusPedido === 40) {
+        console.log("finalizando pedido");
+        await anotaaiApi.post(`/order/finalize/${anotaaiIDTag.Valor}`)
+        await atualizarValorTag({ GUID: pedido.GUIDIdentificacao, chave: "anotaai-status", valor: statusPvdAnotaaiMap[pedido.IDStatusPedido] })
+      }
     }
   } catch (error) {
     console.log("Erro ao sincronizar produtos", pedido.IDPedido);
