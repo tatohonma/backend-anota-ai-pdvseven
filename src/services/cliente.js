@@ -15,7 +15,7 @@ exports.criarNovoCliente = async ({ guid, nomeCompleto, ddd, telefone, nomeRua, 
     .input("Bairro", sql.VarChar, bairro)
     .input("Cidade", sql.VarChar, cidade)
     .input("IDEstado", sql.Int, idEstado)
-    .input("CEP", sql.Int, cep)
+    .input("CEP", sql.Int, cep ? parseInt(cep, 10) : null)
     .input("EnderecoReferencia", sql.VarChar, enderecoDeReferenia)
     .input("GUIDIdentificacao", sql.VarChar, guid)
     .input("Documento1", documento)
@@ -45,19 +45,15 @@ exports.atualizarCliente = async ({ nomeCompleto, ddd, telefone, documento, nome
     .input("Bairro", sql.VarChar, bairro)
     .input("Cidade", sql.VarChar, cidade)
     .input("IDEstado", sql.Int, idEstado)
-    .input("CEP", sql.Int, cep)
+    .input("CEP", sql.Int, parseInt(cep.replace("-", ""), 10))
     .input("EnderecoReferencia", sql.VarChar, enderecoDeReferenia)
     .input("Documento1", documento)
-    .input("Telefone1DDD", sql.Int, ddd)
-    .input("Telefone1Numero", sql.Int, telefone)
     .input("IDCliente", sql.Int, idCliente).query(`
       UPDATE tbCliente SET 
         NomeCompleto = @NomeCompleto,
         Telefone1DDD = @Telefone1DDD,
         Telefone1Numero = @Telefone1Numero,
         Endereco = @Endereco,
-        Telefone1DDD = @Telefone1DDD, 
-        Telefone1Numero = Telefone1Numero,
         EnderecoNumero = @EnderecoNumero, 
         Documento1 = @Documento1,
         Complemento = @Complemento, 

@@ -51,7 +51,7 @@ const adicionarCliente = async ({ pedido }) => {
   const idEstado = await buscarIdEstado({ estado: pedido.deliveryAddress.state })
 
   const bairro = pedido.deliveryAddress.neighborhood;
-  const cep =  pedido.deliveryAddress.postalCode;
+  const cep = pedido.deliveryAddress.postalCode ? pedido.deliveryAddress.postalCode.replace(/\D/g, "") : null;
   const cidade=  pedido.deliveryAddress.city;
   const complemento = pedido.deliveryAddress.complement;
   const nomeCompleto = pedido.customer.name;
@@ -150,12 +150,14 @@ const adicionarPedido = async (pedido, idCliente) => {
     .input("IDOrigemPedido", sql.Int, idOrigemPedido)
     .input("PermitirAlterar", sql.Bit, 0)
     .input("TaxaServicoPadrao", sql.Int, taxaServicoPadrao)
-    .input("IDEntregador", sql.Int, idEntregador).query(`
+    .input("IDEntregador", sql.Int, idEntregador)
+    .input("IDRetornoSAT_Venda", sql.Int, pedido.IDRetornoSAT_Venda || null)
+    .query(`
           INSERT INTO [dbo].[tbPedido]
-              ([IDCliente], [IDTipoPedido], [IDStatusPedido], [IDTipoDesconto], [IDTaxaEntrega], [GUIDIdentificacao], [GUIDMovimentacao], [DtPedido], [ValorDesconto], [ValorTotal], [Observacoes], [ValorEntrega], [AplicarDesconto], [ObservacaoCupom], [IDOrigemPedido], [PermitirAlterar], [IDEntregador], [TaxaServicoPadrao])
+              ([IDCliente], [IDTipoPedido], [IDStatusPedido], [IDTipoDesconto], [IDTaxaEntrega], [GUIDIdentificacao], [GUIDMovimentacao], [DtPedido], [ValorDesconto], [ValorTotal], [Observacoes], [ValorEntrega], [AplicarDesconto], [ObservacaoCupom], [IDOrigemPedido], [PermitirAlterar], [IDEntregador], [TaxaServicoPadrao], [IDRetornoSAT_Venda])
           OUTPUT INSERTED.IDPedido
           VALUES
-              (@IDCliente, @IDTipoPedido, @IDStatusPedido, @IDTipoDesconto, @IDTaxaEntrega, @GUIDIdentificacao, @GUIDMovimentacao, GetDate(), @ValorDesconto, @ValorTotal, @Observacoes, @ValorEntrega, @AplicarDesconto, @ObservacaoCupom, @IDOrigemPedido, @PermitirAlterar, @IDEntregador, @TaxaServicoPadrao)
+              (@IDCliente, @IDTipoPedido, @IDStatusPedido, @IDTipoDesconto, @IDTaxaEntrega, @GUIDIdentificacao, @GUIDMovimentacao, GetDate(), @ValorDesconto, @ValorTotal, @Observacoes, @ValorEntrega, @AplicarDesconto, @ObservacaoCupom, @IDOrigemPedido, @PermitirAlterar, @IDEntregador, @TaxaServicoPadrao, @IDRetornoSAT_Venda)
       `);
 
   const tags = [
@@ -303,12 +305,12 @@ const formatarTicket = (pedido, cliente, pagamentos) => {
 
   ticket += `Itens:\r\n`;
   pedido.items.forEach((item) => {
-    ticket += `  - ${item.quantity.toFixed(2)}  ${item.name}: R$ ${item.price.toFixed(2)}\r\n`;
+    ticket += `  - ${item.quantity} x ${item.name}: R$ ${item.price.toFixed(2)}\r\n`;
     if (item.observation) ticket += `    Observações: ${item.observation}\r\n`;
 
     //adicionar subitens ao ticket
     item.subItems.forEach((subItem) => {
-      ticket += `    - ${subItem.quantity.toFixed(2)}  ${subItem.name}: R$ ${subItem.price.toFixed(2)}\r\n`;
+      ticket += `    - ${subItem.quantity} x ${subItem.name}: R$ ${subItem.price.toFixed(2)}\r\n`;
       if (subItem.observation) ticket += `      Observações: ${subItem.observation}\r\n`;
     });
   });
