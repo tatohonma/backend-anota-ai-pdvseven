@@ -2,8 +2,8 @@ const sql = require("mssql");
 const { v4: uuidv4 } = require("uuid");
 const { getPool } = require("./config/db");
 const { getConfiguracoes } = require("./config/pdv7");
-const {anotaaiApi} = require("./config/axios")
-const {obterMotivoCancelamento} = require("./services/motivoCancelamento")
+const { anotaaiApi } = require("./config/axios")
+const { obterMotivoCancelamento } = require("./services/motivoCancelamento")
 
 const {procurarTagGUIDChave, procurarTagChaveValor, atualizarValorTag, criarTag} = require("./services/tag")
 
@@ -51,7 +51,7 @@ const adicionarCliente = async ({ pedido }) => {
   const idEstado = await buscarIdEstado({ estado: pedido.deliveryAddress.state })
 
   const bairro = pedido.deliveryAddress.neighborhood;
-  const cep =  pedido.deliveryAddress.postalCode;
+  const cep = pedido.deliveryAddress.postalCode ? pedido.deliveryAddress.postalCode.replace(/\D/g, "") : null;
   const cidade=  pedido.deliveryAddress.city;
   const complemento = pedido.deliveryAddress.complement;
   const nomeCompleto = pedido.customer.name;
@@ -102,6 +102,7 @@ const adicionarCliente = async ({ pedido }) => {
     numeroRua,
     idCliente: clienteExistente.IDCliente,
     idEstado,
+    nomeCompleto,
     ddd,
     telefone,
     documento,
@@ -129,7 +130,7 @@ const adicionarPedido = async (pedido, idCliente) => {
   const observacaoCupom = "";
   const taxaServicoPadrao = 0;
 
-  const guid =  uuidv4()
+  const guid = uuidv4()
 
   const result = await pool
     .request()
@@ -138,7 +139,7 @@ const adicionarPedido = async (pedido, idCliente) => {
     .input("IDStatusPedido", sql.Int, 60)
     .input("IDTipoDesconto", sql.Int, idTipoDesconto)
     .input("IDTaxaEntrega", sql.Int, idTaxaEntrega)
-    .input("GUIDIdentificacao", sql.NVarChar(50),guid)
+    .input("GUIDIdentificacao", sql.NVarChar(50), guid)
     .input("GUIDMovimentacao", sql.NVarChar(50), uuidv4())
     .input("ValorDesconto", sql.Decimal(18, 2), valorDesconto)
     .input("ValorTotal", sql.Decimal(18, 2), pedido.total)
@@ -149,12 +150,14 @@ const adicionarPedido = async (pedido, idCliente) => {
     .input("IDOrigemPedido", sql.Int, idOrigemPedido)
     .input("PermitirAlterar", sql.Bit, 0)
     .input("TaxaServicoPadrao", sql.Int, taxaServicoPadrao)
-    .input("IDEntregador", sql.Int, idEntregador).query(`
+    .input("IDEntregador", sql.Int, idEntregador)
+    .input("IDRetornoSAT_Venda", sql.Int, pedido.IDRetornoSAT_Venda || null)
+    .query(`
           INSERT INTO [dbo].[tbPedido]
-              ([IDCliente], [IDTipoPedido], [IDStatusPedido], [IDTipoDesconto], [IDTaxaEntrega], [GUIDIdentificacao], [GUIDMovimentacao], [DtPedido], [ValorDesconto], [ValorTotal], [Observacoes], [ValorEntrega], [AplicarDesconto], [ObservacaoCupom], [IDOrigemPedido], [PermitirAlterar], [IDEntregador], [TaxaServicoPadrao])
+              ([IDCliente], [IDTipoPedido], [IDStatusPedido], [IDTipoDesconto], [IDTaxaEntrega], [GUIDIdentificacao], [GUIDMovimentacao], [DtPedido], [ValorDesconto], [ValorTotal], [Observacoes], [ValorEntrega], [AplicarDesconto], [ObservacaoCupom], [IDOrigemPedido], [PermitirAlterar], [IDEntregador], [TaxaServicoPadrao], [IDRetornoSAT_Venda])
           OUTPUT INSERTED.IDPedido
           VALUES
-              (@IDCliente, @IDTipoPedido, @IDStatusPedido, @IDTipoDesconto, @IDTaxaEntrega, @GUIDIdentificacao, @GUIDMovimentacao, GetDate(), @ValorDesconto, @ValorTotal, @Observacoes, @ValorEntrega, @AplicarDesconto, @ObservacaoCupom, @IDOrigemPedido, @PermitirAlterar, @IDEntregador, @TaxaServicoPadrao)
+              (@IDCliente, @IDTipoPedido, @IDStatusPedido, @IDTipoDesconto, @IDTaxaEntrega, @GUIDIdentificacao, @GUIDMovimentacao, GetDate(), @ValorDesconto, @ValorTotal, @Observacoes, @ValorEntrega, @AplicarDesconto, @ObservacaoCupom, @IDOrigemPedido, @PermitirAlterar, @IDEntregador, @TaxaServicoPadrao, @IDRetornoSAT_Venda)
       `);
 
   const tags = [
@@ -302,8 +305,14 @@ const formatarTicket = (pedido, cliente, pagamentos) => {
 
   ticket += `Itens:\r\n`;
   pedido.items.forEach((item) => {
-    ticket += `  - ${item.name} (x${item.quantity}): R$ ${item.price.toFixed(2)}\r\n`;
+    ticket += `  - ${item.quantity} x ${item.name}: R$ ${item.price.toFixed(2)}\r\n`;
     if (item.observation) ticket += `    Observações: ${item.observation}\r\n`;
+
+    //adicionar subitens ao ticket
+    item.subItems.forEach((subItem) => {
+      ticket += `    - ${subItem.quantity} x ${subItem.name}: R$ ${subItem.price.toFixed(2)}\r\n`;
+      if (subItem.observation) ticket += `      Observações: ${subItem.observation}\r\n`;
+    });
   });
 
   ticket += `\r\nDescontos:\r\n`;
