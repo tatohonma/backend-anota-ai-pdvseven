@@ -12,7 +12,6 @@ const pedidosController = async (req, res) => {
 };
 
 const processarPedidosImportacao = async () => {
-  // console.log("processarPedidosImportacao");
   try {
     const response = await anotaaiApi.get("/ping/list?excludeIfood=1&groupOrdersByTable=1");
     const pedidos = response.data.info.docs;
@@ -27,14 +26,12 @@ const processarPedidosImportacao = async () => {
 
     // Adiciona pedidos ao pvd7
      if(!tag){
-      // if(pedido.check === 0){
         console.log("adicionando pedido", pedido);
         
         const detalhesResponse = await anotaaiApi.get(`/ping/get/${pedido._id}`);
         const pedidoCompleto = detalhesResponse.data.info;
  
         inserirPedidoNoPDVSeven(pedidoCompleto);
-        // }
      }
     }
   } catch (error) {
