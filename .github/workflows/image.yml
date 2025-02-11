@@ -1,11 +1,11 @@
 name: Generate image
 
 on:
-  push:
+  pull_request:
     branches:
       - main # Branch de destino para gerenciar releases
-    # types:
-    #   - closed
+    types:
+      - closed
 
 jobs:
   build_and_publish:
