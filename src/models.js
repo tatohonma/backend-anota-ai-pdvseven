@@ -51,7 +51,7 @@ const adicionarCliente = async ({ pedido }) => {
   const idEstado = await buscarIdEstado({ estado: pedido.deliveryAddress.state })
 
   const bairro = pedido.deliveryAddress.neighborhood;
-  const cep = pedido.deliveryAddress.postalCode ? pedido.deliveryAddress.postalCode.replace(/\D/g, "") : null;
+  const cep = pedido.deliveryAddress.postalCode ? pedido.deliveryAddress.postalCode.replace(/\D/g, "") : "0";
   const cidade=  pedido.deliveryAddress.city;
   const complemento = pedido.deliveryAddress.complement;
   const nomeCompleto = pedido.customer.name;
