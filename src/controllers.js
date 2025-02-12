@@ -5,14 +5,13 @@ const {anotaaiApi} = require("./config/axios")
 const {procurarTagChaveValor} = require("./services/tag")
 
 const pedidosController = async (req, res) => {
-  processarPedidosImportacao();
-  processarPedidosExportacao();
+  await processarPedidosImportacao();
+  await processarPedidosExportacao();
 
   res.status(200).json({ message: "Pedidos sendo processados..." });
 };
 
 const processarPedidosImportacao = async () => {
-  // console.log("processarPedidosImportacao");
   try {
     const response = await anotaaiApi.get("/ping/list?excludeIfood=1&groupOrdersByTable=1");
     const pedidos = response.data.info.docs;
@@ -27,14 +26,12 @@ const processarPedidosImportacao = async () => {
 
     // Adiciona pedidos ao pvd7
      if(!tag){
-      if(pedido.check === 0){
         console.log("adicionando pedido", pedido);
         
         const detalhesResponse = await anotaaiApi.get(`/ping/get/${pedido._id}`);
         const pedidoCompleto = detalhesResponse.data.info;
-        // console.log("inserirPedido")
+ 
         inserirPedidoNoPDVSeven(pedidoCompleto);
-        }
      }
     }
   } catch (error) {
