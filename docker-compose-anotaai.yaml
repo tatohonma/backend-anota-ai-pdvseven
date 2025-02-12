@@ -1,0 +1,24 @@
+version: "3.8"
+services:
+  backend:
+    image: ghcr.io/maikonalexandre/backend-anota-ai-pdvseven:1.1.0
+    container_name: backend-anota-ai-pdvseven
+    environment:
+      NODE_ENV: development
+      PORT: 5000
+      ANOTA_AI_TOKEN: "eyJhbGciOiJIUzI1NiJ9.eyJpZHBhcnRuZXIiOiI2NmUxODI0ZWQ2OGM2ZDAwMTJjMTA4NTQiLCJpZHBhZ2UiOiI2NmUxYThmOWE1NjdkNzAwMTIyYzI3ZWMifQ.jx43DyjGWRngFwbgQoDktIQuYxMXN4Cx7GsVs8DRvAo"
+      PDV7_DB_SERVER: "localhost\PDV7"
+      PDV7_DB_USER: "pdv7"
+      PDV7_DB_PASS: "pdv@77"
+      PDV7_DB_NAME: "pdv7"
+      PDV: "8"
+      CHAVE_ACESSO: "9933"
+    ports:
+      - "5000:5000"
+  cron:
+    image: ghcr.io/maikonalexandre/pdv7-integracao-cron-job:1.1.0
+    container_name: pdv7-integracao-cron-job
+    environment:
+      BACKEND_INTEGRACAO_ANOTAAI_PDV7_URL: http://localhost:5000/api/importar
+    depends_on:
+      - backend
