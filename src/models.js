@@ -132,20 +132,11 @@ const adicionarPedido = async (pedido, idCliente) => {
 
   const guid = uuidv4()
 
-  const statusAnotaaiPVD7 = {
-     1: 10,
-     2: 20,
-     3: 40,
-     4: 50,
-     5: 50,
-     0: 60,
-};
-
   const result = await pool
     .request()
     .input("IDCliente", sql.Int, idCliente)
     .input("IDTipoPedido", sql.Int, 30)
-    .input("IDStatusPedido", sql.Int, statusAnotaaiPVD7[pedido.check])
+    .input("IDStatusPedido", sql.Int, 60)
     .input("IDTipoDesconto", sql.Int, idTipoDesconto)
     .input("IDTaxaEntrega", sql.Int, idTaxaEntrega)
     .input("GUIDIdentificacao", sql.NVarChar(50), guid)
@@ -370,6 +361,10 @@ const sincronisarStatus = async ({ pedido }) => {
     };
 
     const anotaaiTagId = await procurarTagGUIDChave({ chave: "anotaai-_orderId", GUID: pedido.GUIDIdentificacao });
+
+    // console.log("pedido", pedido)
+    // console.log("anotaaiTagId", anotaaiTagId);
+
     const detalhesDoPedidoAnotaAi = await anotaaiApi.get(`/ping/get/${anotaaiTagId.Valor}`);
     const valorStatusPedidoAnotaAi = detalhesDoPedidoAnotaAi.data.info.check;
 
@@ -390,23 +385,23 @@ const sincronisarStatus = async ({ pedido }) => {
         }
 
         if (statusPedidoAnotaAi === "em-producao" && statusPedidoPDV7 === "nao-confirmado") {
-            console.log("Status pvd7 sendo alterado para aberto");
+            console.log("Status anotaai no pdvseven sendo alterado para 'em-producao'");
             await atualizarValorTag({ chave: "anotaai-status", GUID: pedido.GUIDIdentificacao, valor: valorStatusPedidoAnotaAi.toString() });
-            await atualizarStatusPedido({ GUID: pedido.GUIDIdentificacao, IDStatusPedido: 10 });  // 10 corresponde a "aberto"
+            // await atualizarStatusPedido({ GUID: pedido.GUIDIdentificacao, IDStatusPedido: 60 });  // 10 corresponde a "nao conf"
             return;
         }
 
         if(statusPedidoAnotaAi === "pronto" && ["nao-confirmado", "aberto"].includes(statusPedidoPDV7)){
-          console.log("Status pvd7 sendo alterado para enviado");
-          await atualizarValorTag({ chave: "anotaai-status", GUID: pedido.GUIDIdentificacao, valor: valorStatusPedidoAnotaAi.toString() });
-          await atualizarStatusPedido({ GUID: pedido.GUIDIdentificacao, IDStatusPedido: 20 });  // 20 corresponde a "enviado"
+          // console.log("Status pvd7 sendo alterado para enviado");
+          // await atualizarValorTag({ chave: "anotaai-status", GUID: pedido.GUIDIdentificacao, valor: valorStatusPedidoAnotaAi.toString() });
+          // await atualizarStatusPedido({ GUID: pedido.GUIDIdentificacao, IDStatusPedido: 20 });  // 20 corresponde a "enviado"
           return;
         }
 
         if(statusPedidoAnotaAi === "finalizado" && ["nao-confirmado", "aberto", "enviado"].includes(statusPedidoPDV7)){
-          console.log("Status pvd7 sendo alterado para finalizado")
-          await atualizarValorTag({ chave: "anotaai-status", GUID: pedido.GUIDIdentificacao, valor: valorStatusPedidoAnotaAi.toString() });
-          await atualizarStatusPedido({ GUID: pedido.GUIDIdentificacao, IDStatusPedido: 40 });  // 40 corresponde a finalizado
+          // console.log("Status pvd7 sendo alterado para finalizado")
+          // await atualizarValorTag({ chave: "anotaai-status", GUID: pedido.GUIDIdentificacao, valor: valorStatusPedidoAnotaAi.toString() });
+          // await atualizarStatusPedido({ GUID: pedido.GUIDIdentificacao, IDStatusPedido: 40 });  // 40 corresponde a finalizado
           return;
         }
 
