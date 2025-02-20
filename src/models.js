@@ -234,14 +234,35 @@ const adicionarPedidoProduto = async (idPedido, produto, idPedidoProdutoPai, ite
     return result.recordset[0].IDPedidoProduto
 };
 
+const normalizeString = (str) => {
+  return str
+    ? str
+        .normalize("NFD") // Separa acentos dos caracteres
+        .replace(/[\u0300-\u036f]/g, "") // Remove os acentos
+        .toLowerCase() // Converte para minúsculas
+    : "";
+};
+
 const carregarTipoPagamento = async (pagamento) => {
   if (pagamento.prepaid) return config.tipoPagamento.anotaai;
+
+  if (pagamento.name === "card" && pagamento.cardSelected) {
+    const cardSelectedNormalized = normalizeString(pagamento.cardSelected);
+
+    if (cardSelectedNormalized === "debito") {
+      return config.tipoPagamento.debito;
+    } else if (cardSelectedNormalized === "credito") {
+      return config.tipoPagamento.credito;
+    } else if (cardSelectedNormalized === "vale refeicao") {
+      return config.tipoPagamento.outros;
+    } else {
+      return config.tipoPagamento.outros; // Se for um valor inesperado, assume Outros
+    }
+  }
 
   switch (pagamento.name) {
     case "money":
       return config.tipoPagamento.dinheiro;
-    case "card":
-      return config.tipoPagamento.credito;
     case "debit_card":
       return config.tipoPagamento.debito;
     case "pix":
@@ -256,9 +277,9 @@ const adicionarPedidoPagamento = async (idPedido, tipoPagamento, pagamento) => {
 
   const idGateway = tipoPagamento.IDGateway === 0 ? null : tipoPagamento.IDGateway;
 
-  const valorDoPagamento = pagamento.code === "money" ? pagamento?.changeFor || pagamento.value : pagamento.value
+  const valorDoPagamento = pagamento.code === "money" ? pagamento?.changeFor || pagamento.value : pagamento.value;
 
-  const result = await pool
+  await pool
     .request()
     .input("IDPedido", sql.Int, idPedido)
     .input("IDTipoPagamento", sql.Int, tipoPagamento.IDTipoPagamento)

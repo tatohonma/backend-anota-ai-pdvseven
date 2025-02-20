@@ -1,7 +1,7 @@
 version: "3.8"
 services:
   backend:
-    image: ghcr.io/tatohonma/backend-anota-ai-pdvseven:1.1.0
+    image: ghcr.io/tatohonma/backend-anota-ai-pdvseven:1.1.2
     container_name: backend-anota-ai-pdvseven
     environment:
       NODE_ENV: development
@@ -16,7 +16,7 @@ services:
     ports:
       - "5000:5000"
   cron:
-    image: ghcr.io/tatohonma/pdv7-integracao-cron-job:1.1.0
+    image: ghcr.io/tatohonma/pdv7-integracao-cron-job:1.1.1
     container_name: pdv7-integracao-cron-job
     environment:
       BACKEND_INTEGRACAO_ANOTAAI_PDV7_URL: http://backend:5000/api/importar
