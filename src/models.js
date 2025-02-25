@@ -205,7 +205,21 @@ const carregarProduto = async (item) => {
 const adicionarPedidoProduto = async (idPedido, produto, idPedidoProdutoPai, item) => {
   const pool = await getPool();
 
-  const idPDV = 13;
+  // Buscar o IDPDV dinâmico com base no pedido
+  let idPDV = produto.idPDV || null;
+
+  if (!idPDV) {
+    // Se idPDV não estiver no produto, buscar um válido no banco
+    const pdvResult = await pool.request().query(`
+      SELECT TOP 1 Valor FROM tbConfiguracaoBD WHERE IDTipoPDV=270 and Chave ='IDPDV' and Titulo='IDPDV do Caixa para Contabilizar o Anota-ai'
+    `);
+    
+    if (pdvResult.recordset.length > 0) {
+      idPDV = pdvResult.recordset[0].IDPDV;
+    } else {
+      throw new Error("Nenhum IDPDV disponível na tabela tbPDV.");
+    }
+  }
   const idUsuario = 1;
 
   let notas = "";
