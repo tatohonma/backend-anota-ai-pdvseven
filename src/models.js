@@ -205,47 +205,45 @@ const carregarProduto = async (item) => {
 const adicionarPedidoProduto = async (idPedido, produto, idPedidoProdutoPai, item) => {
   const pool = await getPool();
 
-  // Buscar o IDPDV dinâmico com base no pedido
-  let idPDV = produto.idPDV || null;
+  // 🔹 Sempre buscar o IDPDV do banco
+  let idPDV = null;
+  const pdvResult = await pool.request().query(`
+    SELECT TOP 1 Valor FROM tbConfiguracaoBD 
+    WHERE IDTipoPDV = 270 AND Chave = 'IDPDV' AND Titulo = 'IDPDV do Caixa para Contabilizar o Anota-ai'
+  `);
 
-  if (!idPDV) {
-    // Se idPDV não estiver no produto, buscar um válido no banco
-    const pdvResult = await pool.request().query(`
-      SELECT TOP 1 Valor FROM tbConfiguracaoBD WHERE IDTipoPDV=270 and Chave ='IDPDV' and Titulo='IDPDV do Caixa para Contabilizar o Anota-ai'
-    `);
-    
-    if (pdvResult.recordset.length > 0) {
-      idPDV = pdvResult.recordset[0].IDPDV;
-    } else {
-      throw new Error("Nenhum IDPDV disponível na tabela tbPDV.");
-    }
+  if (pdvResult.recordset.length > 0) {
+    console.log("Resultado da consulta IDPDV:", pdvResult.recordset[0]); // 🔍 Debug
+    idPDV = pdvResult.recordset[0].Valor;
+  } else {
+    throw new Error("Nenhum IDPDV encontrado na tabela tbConfiguracaoBD.");
   }
+
   const idUsuario = 1;
 
-  let notas = "";
-  if (produto.observacao) notas = produto.observacao;
-  if (item.observation) notas = notas + " " + item.observation;
+  const notas = [produto.observacao, item.observation].filter(Boolean).join(" ");
 
   const result = await pool
     .request()
     .input("IDPedido", sql.Int, idPedido)
     .input("IDProduto", sql.Int, produto.idProduto)
     .input("IDPedidoProduto_pai", sql.Int, idPedidoProdutoPai)
-    .input("IDPDV", sql.Int, idPDV)
+    .input("IDPDV", sql.Int, idPDV) // 🔹 Agora o IDPDV sempre vem do banco
     .input("IDUsuario", sql.Int, idUsuario)
     .input("Quantidade", sql.Decimal(18, 3), item.quantity)
     .input("ValorUnitario", sql.Decimal(18, 2), item.price)
     .input("Notas", sql.NVarChar(sql.MAX), notas)
     .input("Cancelado", sql.Bit, 0)
-    .input("RetornarAoEstoque", sql.Bit, 0).query(`
-          INSERT INTO tbPedidoProduto
-              (IDPedido, IDProduto, IDPedidoProduto_pai, IDPDV, IDUsuario, Quantidade, ValorUnitario, Notas, DtInclusao, Cancelado, RetornarAoEstoque)
-              OUTPUT INSERTED.IDPedidoProduto
-          VALUES
-              (@IDPedido, @IDProduto, @IDPedidoProduto_pai, @IDPDV, @IDUsuario, @Quantidade, @ValorUnitario, @Notas, getDate(), @Cancelado, @RetornarAoEstoque)
-      `);
+    .input("RetornarAoEstoque", sql.Bit, 0)
+    .query(`
+      INSERT INTO tbPedidoProduto
+        (IDPedido, IDProduto, IDPedidoProduto_pai, IDPDV, IDUsuario, Quantidade, ValorUnitario, Notas, DtInclusao, Cancelado, RetornarAoEstoque)
+      OUTPUT INSERTED.IDPedidoProduto
+      VALUES
+        (@IDPedido, @IDProduto, @IDPedidoProduto_pai, @IDPDV, @IDUsuario, @Quantidade, @ValorUnitario, @Notas, GETDATE(), @Cancelado, @RetornarAoEstoque)
+    `);
 
-    return result.recordset[0].IDPedidoProduto
+  return result.recordset[0].IDPedidoProduto;
 };
 
 const normalizeString = (str) => {

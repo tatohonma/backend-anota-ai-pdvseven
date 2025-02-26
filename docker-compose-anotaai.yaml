@@ -1,14 +1,13 @@
-version: "3.8"
 services:
   backend:
-    image: ghcr.io/tatohonma/backend-anota-ai-pdvseven:1.1.6
+    image: ghcr.io/tatohonma/backend-anota-ai-pdvseven:1.1.8
     container_name: backend-anota-ai-pdvseven
     env_file:
       - .env
+    environment:
+      PDV7_DB_SERVER: "host.docker.internal\\PDV7"
     ports:
       - "5000:5000"
-    depends_on:
-      - cron
 
   cron:
     image: ghcr.io/tatohonma/pdv7-integracao-cron-job:1.1.1
