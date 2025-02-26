@@ -37,7 +37,7 @@ const iniciarConfiguracoes = async () => {
     configuracoes.origemPedido = origemPedidoResult.recordset[0];
     console.log("  - OrigemPedido carregada");
 
-    const idPDV = process.env.PDV || 1;
+    const idPDV = process.env.CAIXA_PDV || 1;
     const pdvResult = await pool.request().query(`SELECT * FROM tbPDV WHERE idPDV=${idPDV}`);
 
     if (pdvResult.recordset.length === 0)
