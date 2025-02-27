@@ -1,6 +1,6 @@
 services:
   backend:
-    image: ghcr.io/tatohonma/backend-anota-ai-pdvseven:1.1.8
+    image: ghcr.io/tatohonma/backend-anota-ai-pdvseven:1.1.9
     container_name: backend-anota-ai-pdvseven
     env_file:
       - .env
