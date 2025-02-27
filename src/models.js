@@ -44,24 +44,29 @@ const inserirPedidoNoPDVSeven = async (pedido) => {
 };
 
 const adicionarCliente = async ({ pedido }) => {
-  const clienteExistenteTag = await procurarTagChaveValor({ chave: "anotaai-customerId", valor: pedido.customer.id })
+  const clienteExistenteTag = await procurarTagChaveValor({ chave: "anotaai-customerId", valor: pedido.customer.id });
 
   const ddd = pedido.customer.phone.substring(0, 2);
   const telefone = pedido.customer.phone.substring(2);
-  const idEstado = await buscarIdEstado({ estado: pedido.deliveryAddress.state })
+  
+  let idEstado = await buscarIdEstado({ estado: pedido.deliveryAddress.state });
+  if (!idEstado) {
+    console.warn(`⚠️ ID do estado não encontrado para ${pedido.deliveryAddress.state}. Usando ID padrão: 25.`);
+    idEstado = 25; // ID padrão para estado
+  }
 
   const bairro = pedido.deliveryAddress.neighborhood;
   const cep = pedido.deliveryAddress.postalCode ? pedido.deliveryAddress.postalCode.replace(/\D/g, "") : "0";
-  const cidade=  pedido.deliveryAddress.city;
+  const cidade = pedido.deliveryAddress.city;
   const complemento = pedido.deliveryAddress.complement;
   const nomeCompleto = pedido.customer.name;
-  const enderecoDeReferenia =  pedido.deliveryAddress.reference;
+  const enderecoDeReferenia = pedido.deliveryAddress.reference;
   const nomeRua = pedido.deliveryAddress.streetName;
   const numeroRua = pedido.deliveryAddress.streetNumber;
   const documento = pedido.customer.taxPayerIdentificationNumber;
 
-  if(!clienteExistenteTag){
-    const guid = uuidv4()
+  if (!clienteExistenteTag) {
+    const guid = uuidv4();
 
     const cliente = await criarNovoCliente({
       bairro,
@@ -70,27 +75,26 @@ const adicionarCliente = async ({ pedido }) => {
       complemento,
       ddd,
       telefone,
-      idEstado, 
+      idEstado,
       nomeCompleto,
       enderecoDeReferenia,
       nomeRua,
       numeroRua,
       guid,
       documento,
-    })
+    });
 
-    await criarTag({ 
-      GUID: guid, 
-      chave: "anotaai-customerId", 
+    await criarTag({
+      GUID: guid,
+      chave: "anotaai-customerId",
       valor: pedido.customer.id,
-    })
+    });
 
     console.log("✅ Novo cliente adicionado");
-
-    return cliente.IDCliente
+    return cliente.IDCliente;
   }
 
-  const clienteExistente = await buscarClientePorGUID({ guid: clienteExistenteTag.GUIDIdentificacao })
+  const clienteExistente = await buscarClientePorGUID({ guid: clienteExistenteTag.GUIDIdentificacao });
 
   await atualizarCliente({
     bairro,
@@ -106,12 +110,11 @@ const adicionarCliente = async ({ pedido }) => {
     ddd,
     telefone,
     documento,
-  })
+  });
 
   console.log("✅ Dados do cliente atualizado");
-
-  return clienteExistente.IDCliente
-}
+  return clienteExistente.IDCliente;
+};
 
 const adicionarPedido = async (pedido, idCliente) => {
   const pool = await getPool();
