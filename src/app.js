@@ -13,7 +13,7 @@ if (process.env.NODE_ENV === "development") app.use(morgan("dev"));
 app.use("/api", require("./routes"));
 
 // Inicializar o servidor
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5101;
 app.listen(PORT, async () => {
   try {
     console.log("Iniciando serviço...");
