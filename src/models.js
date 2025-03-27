@@ -222,17 +222,39 @@ const adicionarPedidoProduto = async (idPedido, produto, idPedidoProdutoPai, ite
     throw new Error("Nenhum IDPDV encontrado na tabela tbConfiguracaoBD.");
   }
 
-  const idUsuario = 1;
+  require('dotenv').config(); // Carrega as variáveis de ambiente
 
+  const chaveUsuario = process.env.CHAVE_USUARIO ? parseInt(process.env.CHAVE_USUARIO, 10) : null;
+  
+  if (!chaveUsuario) {
+    throw new Error("CHAVE_USUARIO não está definida no arquivo .env ou é inválida.");
+  }
+  
+  console.log("CHAVE_USUARIO carregada:", chaveUsuario); // 🛠️ Debug para verificar se a variável está correta
+  
+  // Busca o IDUsuario no banco com base na chave (senha)
+  const usuarioResult = await pool
+    .request()
+    .input("Senha", sql.Int, chaveUsuario)
+    .query("SELECT IDUsuario FROM tbUsuario WHERE Senha = @Senha");
+  
+  if (usuarioResult.recordset.length === 0) {
+    throw new Error(`Nenhum usuário encontrado para a CHAVE_USUARIO: ${chaveUsuario}`);
+  }
+  
+  const idUsuario = usuarioResult.recordset[0].IDUsuario;
+  
+  console.log("IDUsuario carregado do banco:", idUsuario); // 🛠️ Debug para verificar se está pegando o ID correto
+  
   const notas = [produto.observacao, item.observation].filter(Boolean).join(" ");
-
+  
   const result = await pool
     .request()
     .input("IDPedido", sql.Int, idPedido)
     .input("IDProduto", sql.Int, produto.idProduto)
     .input("IDPedidoProduto_pai", sql.Int, idPedidoProdutoPai)
-    .input("IDPDV", sql.Int, idPDV) // 🔹 Agora o IDPDV sempre vem do banco
-    .input("IDUsuario", sql.Int, idUsuario)
+    .input("IDPDV", sql.Int, idPDV)
+    .input("IDUsuario", sql.Int, idUsuario) // 🚀 Agora realmente usa o ID do banco
     .input("Quantidade", sql.Decimal(18, 3), item.quantity)
     .input("ValorUnitario", sql.Decimal(18, 2), item.price)
     .input("Notas", sql.NVarChar(sql.MAX), notas)
@@ -245,7 +267,9 @@ const adicionarPedidoProduto = async (idPedido, produto, idPedidoProdutoPai, ite
       VALUES
         (@IDPedido, @IDProduto, @IDPedidoProduto_pai, @IDPDV, @IDUsuario, @Quantidade, @ValorUnitario, @Notas, GETDATE(), @Cancelado, @RetornarAoEstoque)
     `);
-
+  
+  console.log("Novo IDPedidoProduto inserido:", result.recordset[0].IDPedidoProduto); // 🛠️ Debug para verificar a inserção correta
+  
   return result.recordset[0].IDPedidoProduto;
 };
 
