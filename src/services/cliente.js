@@ -1,25 +1,41 @@
 const { getPool } = require("../config/db")
 const sql = require("mssql");
 
-exports.criarNovoCliente = async ({ guid, nomeCompleto, ddd, telefone, nomeRua, numeroRua, complemento, bairro, cidade, cep, enderecoDeReferenia, idEstado, documento }) => {
+exports.criarNovoCliente = async ({
+  id,
+  name,
+  extension,
+  phone,
+  street,
+  number,
+  complement,
+  district,
+  city,
+  postalCode,
+  formattedAddress,
+  state
+  // documento ❌ não existe no JSON da Keeta
+}) => {
+
   const pool = await getPool()
 
   const result = await pool
     .request()
-    .input("NomeCompleto", sql.VarChar, nomeCompleto)
-    .input("Telefone1DDD", sql.Int, ddd)
-    .input("Telefone1Numero", sql.Int, telefone)
-    .input("Endereco", sql.VarChar, nomeRua)
-    .input("EnderecoNumero", sql.VarChar, numeroRua)
-    .input("Complemento", sql.VarChar, complemento)
-    .input("Bairro", sql.VarChar, bairro)
-    .input("Cidade", sql.VarChar, cidade)
-    .input("IDEstado", sql.Int, idEstado)
-    .input("CEP", sql.Int, cep ? parseInt(cep, 10) : null)
-    .input("EnderecoReferencia", sql.VarChar, enderecoDeReferenia)
+    .input("NomeCompleto", sql.VarChar, name)
+    .input("Telefone1DDD", sql.Int, extension)
+    .input("Telefone1Numero", sql.Int, phone)
+    .input("Endereco", sql.VarChar, street)
+    .input("EnderecoNumero", sql.VarChar, number)
+    .input("Complemento", sql.VarChar, complement)
+    .input("Bairro", sql.VarChar, district)
+    .input("Cidade", sql.VarChar, city)
+    .input("IDEstado", sql.Int, state)
+    .input("CEP", sql.Int, postalCode ? parseInt(postalCode, 10) : null)
+    .input("EnderecoReferencia", sql.VarChar, formattedAddress)
     .input("GUIDIdentificacao", sql.VarChar, guid)
-    .input("Documento1", documento)
-    .input("Bloqueado", sql.Bit, 0).query(`
+    .input("Documento1", sql.VarChar, null) // não existe no JSON
+    .input("Bloqueado", sql.Bit, 0)
+    .query(`
         INSERT INTO tbCliente 
           (NomeCompleto, Documento1, Telefone1DDD, Telefone1Numero, Endereco, EnderecoNumero, Complemento, Bairro, Cidade, IDEstado, CEP, EnderecoReferencia, GUIDIdentificacao, Bloqueado, DtInclusao) 
         OUTPUT INSERTED.IDCliente
@@ -31,24 +47,40 @@ exports.criarNovoCliente = async ({ guid, nomeCompleto, ddd, telefone, nomeRua, 
 }
 
 
-exports.atualizarCliente = async ({ nomeCompleto, ddd, telefone, documento, nomeRua, numeroRua, complemento, bairro, cidade, idEstado, cep, enderecoDeReferenia, idCliente }) => {
+exports.atualizarCliente = async ({
+  name,
+  extension,
+  phone,
+  street,
+  number,
+  complement,
+  district,
+  city,
+  state,
+  postalCode,
+  formattedAddress,
+  idCliente
+  // documento ❌ não existe no JSON
+}) => {
+
   const pool = await getPool()
 
   const result = await pool
     .request()
-    .input("NomeCompleto", sql.VarChar, nomeCompleto)
-    .input("Telefone1DDD", sql.Int, ddd)
-    .input("Telefone1Numero", sql.Int, telefone)
-    .input("Endereco", sql.VarChar, nomeRua)
-    .input("EnderecoNumero", sql.VarChar, numeroRua)
-    .input("Complemento", sql.VarChar, complemento)
-    .input("Bairro", sql.VarChar, bairro)
-    .input("Cidade", sql.VarChar, cidade)
-    .input("IDEstado", sql.Int, idEstado)
-    .input("CEP", sql.Int, parseInt(cep.replace("-", ""), 10))
-    .input("EnderecoReferencia", sql.VarChar, enderecoDeReferenia)
-    .input("Documento1", documento)
-    .input("IDCliente", sql.Int, idCliente).query(`
+    .input("NomeCompleto", sql.VarChar, name)
+    .input("Telefone1DDD", sql.Int, extension)
+    .input("Telefone1Numero", sql.Int, phone)
+    .input("Endereco", sql.VarChar, street)
+    .input("EnderecoNumero", sql.VarChar, number)
+    .input("Complemento", sql.VarChar, complement)
+    .input("Bairro", sql.VarChar, district)
+    .input("Cidade", sql.VarChar, city)
+    .input("IDEstado", sql.Int, state)
+    .input("CEP", sql.Int, postalCode ? parseInt(postalCode, 10) : null)
+    .input("EnderecoReferencia", sql.VarChar, formattedAddress)
+    .input("Documento1", sql.VarChar, null) // ❌ não existe
+    .input("IDCliente", sql.Int, idCliente)
+    .query(`
       UPDATE tbCliente SET 
         NomeCompleto = @NomeCompleto,
         Telefone1DDD = @Telefone1DDD,
@@ -62,22 +94,25 @@ exports.atualizarCliente = async ({ nomeCompleto, ddd, telefone, documento, nome
         IDEstado = @IDEstado,
         CEP = @CEP, 
         EnderecoReferencia = @EnderecoReferencia 
-      WHERE IDCliente = @IDCliente`);
+      WHERE IDCliente = @IDCliente
+    `);
 
   return result
 }
 
-exports.buscarClientePorGUID = async ({ guid }) => {
+
+exports.buscarClientePorGUID = async ({ id }) => {
+
   const pool = await getPool()
 
   const result = await pool
     .request()
-    .input("GUIDIdentificacao", sql.NVarChar(50), guid)
+    .input("GUIDIdentificacao", sql.NVarChar(50), id)
     .query(`
-    SELECT *
-    FROM [dbo].[tbCliente]
-    WHERE GUIDIdentificacao = @GUIDIdentificacao;
-  `);
+      SELECT *
+      FROM [dbo].[tbCliente]
+      WHERE GUIDIdentificacao = @GUIDIdentificacao;
+    `);
 
   return result.recordset[0]
 }

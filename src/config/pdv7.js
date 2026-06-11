@@ -114,23 +114,23 @@ const iniciarConfiguracoes = async () => {
     // Carregar Forma de Pagamento
     let tipoPagamentoResult = await pool
       .request()
-      .query(`SELECT * FROM tbTipoPagamento WHERE nome='Pago On-line Anota-Ai'`);
+      .query(`SELECT * FROM tbTipoPagamento WHERE nome='anota-ai'`);
 
     if (tipoPagamentoResult.recordset.length === 0) {
       await pool.request().query(`INSERT INTO tbGateway
-        (idGateway, nome) VALUES (24, 'anota-ai')`);
+        (idGateway, nome) VALUES (6, 'anota-ai')`);
 
       await pool.request().query(`INSERT INTO tbTipoPagamento 
         (nome, registrarValores, ativo, idMeioPagamentoSAT, idGateway) VALUES 
-        ('Pago On-line Anota-Ai', 0, 1, 10, 24)`);
+        ('anota-ai', 0, 1, 10, 6)`);
 
       console.log("  - TipoPagamento adicionada com sucesso.");
       tipoPagamentoResult = await pool
         .request()
-        .query(`SELECT * FROM tbTipoPagamento WHERE nome='Pago On-line Anota-Ai'`);
+        .query(`SELECT * FROM tbTipoPagamento WHERE nome='anota-ai'`);
     }
     configuracoes.tipoPagamento.anotaai = tipoPagamentoResult.recordset[0];
-    console.log("  - TipoPagamento Pago On-line Anota-Ai carregada");
+    console.log("  - TipoPagamento anotaai carregada");
 
     const dinheiroResult = await pool
       .request()

@@ -44,27 +44,59 @@ const inserirPedidoNoPDVSeven = async (pedido) => {
 };
 
 const adicionarCliente = async ({ pedido }) => {
-  const clienteExistenteTag = await procurarTagChaveValor({ chave: "anotaai-customerId", valor: pedido.customer.id });
+  const clienteExistenteTag = await procurarTagChaveValor({
+    chave: "anotaai-customerId",
+    valor: pedido.customer.id
+  });
 
+  // Extrai telefone
   const ddd = pedido.customer.phone.substring(0, 2);
   const telefone = pedido.customer.phone.substring(2);
-  
-  let idEstado = await buscarIdEstado({ estado: pedido.deliveryAddress.state });
-  if (!idEstado) {
-    console.warn(`⚠️ ID do estado não encontrado para ${pedido.deliveryAddress.state}. Usando ID padrão: 25.`);
-    idEstado = 25; // ID padrão para estado
+
+  let bairro, cep, cidade, complemento, enderecoDeReferenia,
+      nomeRua, numeroRua, idEstado, nomeCompleto, documento;
+
+  document = pedido.customer.taxPayerIdentificationNumber;
+  nomeCompleto = pedido.customer.name;
+
+  // ============================================================
+  //        APLICANDO REGRA: TAKE = Retirada no local
+  // ============================================================
+  if (pedido.type === "TAKE") {
+    console.log("📌 Pedido TAKE detectado — usando endereço padrão.");
+
+    bairro = "RETIRADA";
+    cep = "0";
+    cidade = "RETIRADA";
+    complemento = "";
+    enderecoDeReferenia = "";
+    nomeRua = "RETIRADA NO LOCAL";
+    numeroRua = "S/N";
+    idEstado = 25; // Fixado conforme solicitado
+
+  } else { 
+    // ============================================================
+    //                DELIVERY — mantém regras atuais
+    // ============================================================
+    const endereco = pedido.deliveryAddress;
+
+    bairro = endereco.neighborhood;
+    cep = endereco.postalCode ? endereco.postalCode.replace(/\D/g, "") : "0";
+    cidade = endereco.city;
+    complemento = endereco.complement;
+    enderecoDeReferenia = endereco.reference;
+    nomeRua = endereco.streetName;
+    numeroRua = endereco.streetNumber;
+
+    idEstado = await buscarIdEstado({ estado: endereco.state });
+
+    if (!idEstado) {
+      console.warn(`⚠️ ID do estado não encontrado para ${endereco.state}. Usando ID padrão: 25.`);
+      idEstado = 25;
+    }
   }
 
-  const bairro = pedido.deliveryAddress.neighborhood;
-  const cep = pedido.deliveryAddress.postalCode ? pedido.deliveryAddress.postalCode.replace(/\D/g, "") : "0";
-  const cidade = pedido.deliveryAddress.city;
-  const complemento = pedido.deliveryAddress.complement;
-  const nomeCompleto = pedido.customer.name;
-  const enderecoDeReferenia = pedido.deliveryAddress.reference;
-  const nomeRua = pedido.deliveryAddress.streetName;
-  const numeroRua = pedido.deliveryAddress.streetNumber;
-  const documento = pedido.customer.taxPayerIdentificationNumber;
-
+  // Criar ou atualizar cliente
   if (!clienteExistenteTag) {
     const guid = uuidv4();
 
@@ -94,7 +126,10 @@ const adicionarCliente = async ({ pedido }) => {
     return cliente.IDCliente;
   }
 
-  const clienteExistente = await buscarClientePorGUID({ guid: clienteExistenteTag.GUIDIdentificacao });
+  // Cliente existe → atualizar
+  const clienteExistente = await buscarClientePorGUID({
+    guid: clienteExistenteTag.GUIDIdentificacao
+  });
 
   await atualizarCliente({
     bairro,
@@ -222,39 +257,17 @@ const adicionarPedidoProduto = async (idPedido, produto, idPedidoProdutoPai, ite
     throw new Error("Nenhum IDPDV encontrado na tabela tbConfiguracaoBD.");
   }
 
-  require('dotenv').config(); // Carrega as variáveis de ambiente
+  const idUsuario = 1;
 
-  const chaveUsuario = process.env.CHAVE_USUARIO ? parseInt(process.env.CHAVE_USUARIO, 10) : null;
-  
-  if (!chaveUsuario) {
-    throw new Error("CHAVE_USUARIO não está definida no arquivo .env ou é inválida.");
-  }
-  
-  console.log("CHAVE_USUARIO carregada:", chaveUsuario); // 🛠️ Debug para verificar se a variável está correta
-  
-  // Busca o IDUsuario no banco com base na chave (senha)
-  const usuarioResult = await pool
-    .request()
-    .input("Senha", sql.Int, chaveUsuario)
-    .query("SELECT IDUsuario FROM tbUsuario WHERE Senha = @Senha");
-  
-  if (usuarioResult.recordset.length === 0) {
-    throw new Error(`Nenhum usuário encontrado para a CHAVE_USUARIO: ${chaveUsuario}`);
-  }
-  
-  const idUsuario = usuarioResult.recordset[0].IDUsuario;
-  
-  console.log("IDUsuario carregado do banco:", idUsuario); // 🛠️ Debug para verificar se está pegando o ID correto
-  
   const notas = [produto.observacao, item.observation].filter(Boolean).join(" ");
-  
+
   const result = await pool
     .request()
     .input("IDPedido", sql.Int, idPedido)
     .input("IDProduto", sql.Int, produto.idProduto)
     .input("IDPedidoProduto_pai", sql.Int, idPedidoProdutoPai)
-    .input("IDPDV", sql.Int, idPDV)
-    .input("IDUsuario", sql.Int, idUsuario) // 🚀 Agora realmente usa o ID do banco
+    .input("IDPDV", sql.Int, idPDV) // 🔹 Agora o IDPDV sempre vem do banco
+    .input("IDUsuario", sql.Int, idUsuario)
     .input("Quantidade", sql.Decimal(18, 3), item.quantity)
     .input("ValorUnitario", sql.Decimal(18, 2), item.price)
     .input("Notas", sql.NVarChar(sql.MAX), notas)
@@ -267,9 +280,7 @@ const adicionarPedidoProduto = async (idPedido, produto, idPedidoProdutoPai, ite
       VALUES
         (@IDPedido, @IDProduto, @IDPedidoProduto_pai, @IDPDV, @IDUsuario, @Quantidade, @ValorUnitario, @Notas, GETDATE(), @Cancelado, @RetornarAoEstoque)
     `);
-  
-  console.log("Novo IDPedidoProduto inserido:", result.recordset[0].IDPedidoProduto); // 🛠️ Debug para verificar a inserção correta
-  
+
   return result.recordset[0].IDPedidoProduto;
 };
 
