@@ -365,13 +365,18 @@ const adicionarPagamentos = async (pedido, idPedido) => {
 const formatarTicket = (pedido, cliente, pagamentos) => {
   let ticket = ` *** Anota-ai #${pedido.shortReference} ***\r\n`;
   ticket += `Data do Pedido: ${new Date(pedido.createdAt).toLocaleString()}\r\n`;
-  ticket += `Cliente: ${cliente.name}\r\n`;
-  ticket += `Telefone: (${cliente.phone.substring(0, 2)}) ${cliente.phone.substring(2)}\r\n`;
-  ticket += `Endereço: ${pedido.deliveryAddress.formattedAddress}\r\n`;
-  ticket += `Cidade: ${pedido.deliveryAddress.city} - ${pedido.deliveryAddress.state}\r\n`;
-  ticket += `CEP: ${pedido.deliveryAddress.postalCode}\r\n`;
-  ticket += `Referência: ${pedido.deliveryAddress.reference}\r\n`;
-  ticket += `Complemento: ${pedido.deliveryAddress.complement}\r\n\r\n`;
+  ticket += `Cliente: ${cliente?.name || "Não informado"}\r\n`;
+  ticket += `Telefone: ${cliente?.phone || "Não informado"}\r\n`;
+
+  if (pedido.deliveryAddress) {
+    ticket += `Endereço: ${pedido.deliveryAddress.formattedAddress || ""}\r\n`;
+    ticket += `Cidade: ${pedido.deliveryAddress.city || ""} - ${pedido.deliveryAddress.state || ""}\r\n`;
+    ticket += `CEP: ${pedido.deliveryAddress.postalCode || ""}\r\n`;
+    ticket += `Referência: ${pedido.deliveryAddress.reference || ""}\r\n`;
+    ticket += `Complemento: ${pedido.deliveryAddress.complement || ""}\r\n\r\n`;
+  } else {
+    ticket += `Tipo: RETIRADA NO LOCAL (TAKE)\r\n\r\n`;
+  }
 
   ticket += `Itens:\r\n`;
   pedido.items.forEach((item) => {
