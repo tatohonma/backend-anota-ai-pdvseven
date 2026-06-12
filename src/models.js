@@ -71,7 +71,7 @@ const adicionarCliente = async ({ pedido }) => {
     complemento = "";
     enderecoDeReferenia = "";
     nomeRua = "RETIRADA NO LOCAL";
-    numeroRua = "S/N";
+    numeroRua = "0";
     idEstado = 25; // Fixado conforme solicitado
 
   } else { 
