@@ -63,10 +63,11 @@ const adicionarCliente = async ({ pedido }) => {
   //        APLICANDO REGRA: TAKE = Retirada no local
   // ============================================================
   if (
-  pedido.type?.toUpperCase() === "TAKE" ||
-  !pedido.deliveryAddress
-) {
-    console.log("📌 Pedido TAKE detectado — usando endereço padrão.");
+    pedido.type?.toUpperCase() === "TAKE" ||
+    !pedido.deliveryAddress
+  ) {
+
+    console.log("📌 Pedido TAKE ou sem endereço.");
 
     bairro = "RETIRADA";
     cep = "0";
@@ -75,28 +76,23 @@ const adicionarCliente = async ({ pedido }) => {
     enderecoDeReferenia = "";
     nomeRua = "RETIRADA NO LOCAL";
     numeroRua = "0";
-    idEstado = 25; // Fixado conforme solicitado
+    idEstado = 25;
 
-  } else { 
-    // ============================================================
-    //                DELIVERY — mantém regras atuais
-    // ============================================================
+  } else {
+
     const endereco = pedido.deliveryAddress;
 
     bairro = endereco.neighborhood;
-    cep = endereco.postalCode ? endereco.postalCode.replace(/\D/g, "") : "0";
+    cep = endereco.postalCode?.replace(/\D/g, "") || "0";
     cidade = endereco.city;
     complemento = endereco.complement;
     enderecoDeReferenia = endereco.reference;
     nomeRua = endereco.streetName;
     numeroRua = endereco.streetNumber;
 
-    idEstado = await buscarIdEstado({ estado: endereco.state });
-
-    if (!idEstado) {
-      console.warn(`⚠️ ID do estado não encontrado para ${endereco.state}. Usando ID padrão: 25.`);
-      idEstado = 25;
-    }
+    idEstado = await buscarIdEstado({
+      estado: endereco.state
+    }) || 25;
   }
 
   // Criar ou atualizar cliente
