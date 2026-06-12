@@ -62,7 +62,10 @@ const adicionarCliente = async ({ pedido }) => {
   // ============================================================
   //        APLICANDO REGRA: TAKE = Retirada no local
   // ============================================================
-  if (pedido.type === "TAKE") {
+  if (
+  pedido.type?.toUpperCase() === "TAKE" ||
+  !pedido.deliveryAddress
+) {
     console.log("📌 Pedido TAKE detectado — usando endereço padrão.");
 
     bairro = "RETIRADA";
