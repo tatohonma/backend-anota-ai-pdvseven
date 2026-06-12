@@ -56,7 +56,7 @@ const adicionarCliente = async ({ pedido }) => {
   let bairro, cep, cidade, complemento, enderecoDeReferenia,
       nomeRua, numeroRua, idEstado, nomeCompleto, documento;
 
-  document = pedido.customer.taxPayerIdentificationNumber;
+  documento = pedido.customer.taxPayerIdentificationNumber;
   nomeCompleto = pedido.customer.name;
 
   // ============================================================
@@ -128,8 +128,8 @@ const adicionarCliente = async ({ pedido }) => {
 
   // Cliente existe → atualizar
   const clienteExistente = await buscarClientePorGUID({
-    guid: clienteExistenteTag.GUIDIdentificacao
-  });
+  guid: clienteExistenteTag.GUIDIdentificacao
+});
 
   await atualizarCliente({
     bairro,
