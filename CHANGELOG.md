@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.0 (2026-09-24)
+
+### Features
+
+* implement token management with caching and refresh functionality ([878684f](https://github.com/tatohonma/backend-anota-ai-pdvseven/commit/878684f79607694ee83d6d8d5bd43cee9f20fefc))
+
 ## 1.1.20 (2026-06-12)
 
 ## 1.1.19 (2026-06-12)
